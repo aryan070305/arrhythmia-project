@@ -1,0 +1,17 @@
+{
+  "window_size": 187,
+  "num_classes": 5,
+  "class_names": {
+    "0": "Normal (N)",
+    "1": "Supraventricular (S)",
+    "2": "Ventricular (V)",
+    "3": "Fusion (F)",
+    "4": "Unknown (Q)"
+  },
+  "input_shape": [
+    187,
+    1
+  ],
+  "already_normalized": true,
+  "model_version": "1.0.0"
+}

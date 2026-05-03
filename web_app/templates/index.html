@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ECG Arrhythmia Detector</title>
+<meta name="description" content="AI-powered ECG arrhythmia detection using a 1D Residual CNN trained on MIT-BIH. Upload heartbeat CSVs for 5-class classification with attention heatmaps and clinical explanations.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+.top{padding:24px 32px;border-bottom:1px solid #1f2937;background:linear-gradient(135deg,#0f1117 0%,#131726 100%)}
+.top h1{color:#60a5fa;font-size:1.5rem;letter-spacing:-0.02em}
+.top p{color:#6b7280;font-size:.85rem;margin-top:4px}
+.wrap{max-width:860px;margin:0 auto;padding:32px 16px}
+.dropzone{border:2px dashed #374151;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .3s ease;background:#1a1f2e}
+.dropzone:hover,.dropzone.over{border-color:#60a5fa;background:#1e2a3e;box-shadow:0 0 30px rgba(96,165,250,0.08)}
+.dropzone h3{color:#d1d5db;margin-bottom:8px}
+.dropzone p{color:#9ca3af;font-size:.85rem}
+.btn{padding:12px 36px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:20px;display:block;margin-left:auto;margin-right:auto;transition:all .2s ease;box-shadow:0 4px 12px rgba(37,99,235,0.3)}
+.btn:hover{background:linear-gradient(135deg,#1d4ed8,#2563eb);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,0.4)}
+.btn:disabled{background:#374151;cursor:not-allowed;box-shadow:none;transform:none}
+.card{background:#1a1f2e;border:1px solid #2a2f3e;border-radius:12px;padding:24px;margin-top:24px;display:none;transition:all .3s ease}
+.badge{display:inline-block;padding:5px 14px;border-radius:20px;font-weight:600;font-size:.9rem;letter-spacing:0.02em}
+.normal{background:#064e3b;color:#34d399}
+.moderate{background:#78350f;color:#fbbf24}
+.high-risk{background:#450a0a;color:#f87171}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+.stat{background:#111827;border-radius:8px;padding:14px;transition:all .2s ease}
+.stat:hover{background:#151d2e}
+.stat .val{font-size:1.4rem;font-weight:700;color:#60a5fa}
+.stat .key{font-size:.75rem;color:#6b7280;margin-top:2px}
+.bar-row{display:flex;align-items:center;gap:10px;margin:6px 0}
+.bar-label{width:170px;font-size:.82rem;color:#9ca3af;flex-shrink:0}
+.bar-bg{flex:1;height:7px;background:#1f2937;border-radius:4px;overflow:hidden}
+.bar-fill{height:7px;border-radius:4px;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .5s ease}
+.bar-pct{width:42px;text-align:right;font-size:.82rem;color:#d1d5db}
+.spin{display:inline-block;width:18px;height:18px;border:2px solid #374151;border-top-color:#60a5fa;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.warn{margin-top:28px;padding:10px 14px;background:#1c1a00;border-left:3px solid #ca8a04;border-radius:4px;font-size:.78rem;color:#ca8a04}
+#file-input{display:none}
+
+/* Buffer dots */
+.buffer-dots{display:flex;gap:6px;align-items:center;margin-top:8px;justify-content:center}
+.buffer-dot{width:16px;height:16px;border-radius:50%;border:2px solid #374151;transition:all .3s ease}
+.buffer-dot.normal-dot{background:#34d399;border-color:#064e3b;box-shadow:0 0 6px rgba(52,211,153,0.4)}
+.buffer-dot.arr-dot{background:#f87171;border-color:#450a0a;box-shadow:0 0 6px rgba(248,113,113,0.4)}
+.buffer-dot.empty-dot{background:#1f2937;border-color:#374151}
+
+/* Chart legend */
+.chart-legend{display:flex;gap:16px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.chart-legend-item{display:flex;align-items:center;gap:6px;font-size:.75rem;color:#9ca3af}
+.chart-legend-color{width:14px;height:4px;border-radius:2px}
+
+/* Collapsible sections */
+.collapsible-header{background:#111827;border:1px solid #2a2f3e;border-radius:8px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-top:16px;transition:all .2s ease;user-select:none}
+.collapsible-header:hover{background:#151d2e;border-color:#374151}
+.collapsible-header h3{font-size:.88rem;color:#d1d5db;font-weight:600}
+.collapsible-header .arrow{color:#60a5fa;transition:transform .3s ease;font-size:.85rem}
+.collapsible-header.open .arrow{transform:rotate(180deg)}
+.collapsible-body{overflow:hidden;max-height:0;transition:max-height .4s ease,opacity .3s ease;opacity:0}
+.collapsible-body.open{max-height:3000px;opacity:1}
+
+/* Clinical explanation */
+.clinical-section{background:#111827;border-radius:8px;padding:20px;margin-top:10px}
+.clinical-title{font-size:1.1rem;font-weight:700;color:#f9fafb;margin-bottom:10px}
+.clinical-text{font-size:.88rem;color:#d1d5db;line-height:1.65;margin-bottom:14px}
+.clinical-box{background:#0f1117;border:1px solid #2a2f3e;border-radius:8px;padding:14px;margin-bottom:12px}
+.clinical-box-title{font-size:.78rem;font-weight:600;color:#60a5fa;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.clinical-box-text{font-size:.82rem;color:#9ca3af;line-height:1.6}
+.action-box{border-left:3px solid #34d399}
+.waveform-box{border-left:3px solid #fbbf24}
+
+/* Beat table */
+.beat-table-wrap{max-height:400px;overflow-y:auto;margin-top:10px;border-radius:8px;border:1px solid #2a2f3e}
+.beat-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.beat-table th{background:#111827;color:#9ca3af;padding:10px 12px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600;border-bottom:1px solid #2a2f3e}
+.beat-table td{padding:8px 12px;border-bottom:1px solid #1f2937}
+.beat-table tr:hover{background:#151d2e}
+.beat-summary{padding:12px 16px;background:#111827;border-radius:0 0 8px 8px;font-size:.85rem;color:#d1d5db;border-top:1px solid #2a2f3e;font-weight:600}
+
+/* Alert history */
+.alert-section{background:#1a1f2e;border:1px solid #2a2f3e;border-radius:12px;padding:24px;margin-top:24px;display:none}
+.alert-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.alert-header h2{font-size:1rem;color:#9ca3af;font-weight:600}
+.btn-sm{padding:6px 16px;border:1px solid #374151;background:#1f2937;color:#d1d5db;border-radius:6px;font-size:.78rem;cursor:pointer;transition:all .2s ease}
+.btn-sm:hover{background:#2a2f3e;border-color:#4b5563}
+.btn-sm.danger{border-color:#450a0a;color:#f87171}
+.btn-sm.danger:hover{background:#1a0000}
+.alert-table-wrap{max-height:300px;overflow-y:auto;border-radius:8px;border:1px solid #2a2f3e}
+.alert-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.alert-table th{background:#111827;color:#9ca3af;padding:8px 10px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600;border-bottom:1px solid #2a2f3e}
+.alert-table td{padding:6px 10px;border-bottom:1px solid #1f2937}
+.alert-table tr.acked td{text-decoration:line-through;opacity:0.5}
+.alert-row-high{background:#1a0000}
+.alert-row-moderate{background:#1a1000}
+.alert-row-normal{background:#001a0a}
+.alert-empty{text-align:center;padding:24px;color:#6b7280;font-size:.85rem}
+
+/* FS hint */
+.fs-hint{text-align:center;margin-top:6px;font-size:.78rem;color:#9ca3af;transition:all .3s ease;min-height:18px}
+
+/* Scrollbar styling */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#0f1117}
+::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#4b5563}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>⚡ ECG Arrhythmia Detector</h1>
+  <p>Upload a heartbeat CSV · 1D Residual CNN · MIT-BIH 5-class classification · Attention heatmaps</p>
+</div>
+<div class="wrap">
+  <!-- Upload zone -->
+  <div class="dropzone" id="dz" onclick="document.getElementById('file-input').click()">
+    <h3>Drop ECG file here or click to browse</h3>
+    <p>Accepts .csv or .txt — one voltage value per row · max 10 MB</p>
+    <input type="file" id="file-input" accept=".csv,.txt,.npy" onchange="pick(this.files[0])">
+  </div>
+
+  <!-- Sample rate selector -->
+  <div style="margin-top:16px; display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap;">
+    <label style="color:#9ca3af; font-size:.85rem;">
+      Device sample rate (Hz):
+      <select id="fs-select" style="margin-left:8px; background:#1f2937; color:#d1d5db; border:1px solid #374151; border-radius:6px; padding:4px 10px; font-size:.85rem;">
+        <option value="360" selected>360 Hz (MIT-BIH default)</option>
+        <option value="500">500 Hz (most hospital ECGs)</option>
+        <option value="1000">1000 Hz (high-res Holter)</option>
+        <option value="256">256 Hz (some wearables)</option>
+        <option value="128">128 Hz (older devices)</option>
+        <option value="250">250 Hz</option>
+      </select>
+    </label>
+    <button class="btn" id="btn" onclick="run()" disabled>Analyze ECG</button>
+  </div>
+  <div id="fs-hint" class="fs-hint"></div>
+
+  <!-- Loading indicator -->
+  <div id="loading" style="text-align:center;margin-top:20px;display:none">
+    <span class="spin"></span>Analyzing...
+  </div>
+
+  <!-- ═══════════════ RESULT CARD ═══════════════ -->
+  <div class="card" id="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 style="font-size:1rem;color:#9ca3af">Result</h2>
+      <span id="badge" class="badge"></span>
+    </div>
+    <div id="rname" style="font-size:1.5rem;font-weight:700;color:#f9fafb"></div>
+    <div id="rsub" style="font-size:.85rem;color:#9ca3af;margin-top:4px;margin-bottom:18px"></div>
+
+    <!-- Stats grid -->
+    <div class="grid">
+      <div class="stat"><div class="val" id="s-conf"></div><div class="key">Confidence</div></div>
+      <div class="stat"><div class="val" id="s-win"></div><div class="key">Beats analyzed</div></div>
+      <div class="stat"><div class="val" id="s-samp"></div><div class="key">Signal samples</div></div>
+      <div class="stat"><div class="val" id="s-arr"></div><div class="key">Arrhythmia?</div></div>
+      <div class="stat"><div class="val" id="s-mode" style="font-size:.95rem"></div><div class="key">Processing mode</div></div>
+      <div class="stat"><div class="val" id="s-rhythm" style="font-size:.85rem"></div><div class="key">Rhythm label</div></div>
+    </div>
+
+    <!-- Confirmation buffer visualization -->
+    <div style="background:#111827;border-radius:8px;padding:14px;margin-top:12px;text-align:center">
+      <div style="font-size:.75rem;color:#6b7280;margin-bottom:6px">Last 5 Beat Buffer</div>
+      <div class="buffer-dots" id="buffer-dots"></div>
+      <div id="buffer-status" style="font-size:.75rem;color:#9ca3af;margin-top:6px"></div>
+    </div>
+
+    <!-- RR interval features -->
+    <div class="grid-3" id="rr-stats" style="display:none">
+      <div class="stat"><div class="val" id="s-rr-mean" style="font-size:1.1rem"></div><div class="key">RR Mean</div></div>
+      <div class="stat"><div class="val" id="s-rr-std" style="font-size:1.1rem"></div><div class="key">RR Std (irregularity)</div></div>
+      <div class="stat">
+        <div class="val" id="s-confirmed" style="font-size:1.1rem"></div>
+        <div class="key">Confirmed Arrhythmia</div>
+      </div>
+    </div>
+
+    <!-- Class probabilities -->
+    <h3 style="margin-top:20px;margin-bottom:10px;font-size:.9rem;color:#9ca3af">Class probabilities</h3>
+    <div id="bars"></div>
+
+    <!-- ═══ Feature 4: Clinical explanation (collapsible) ═══ -->
+    <div class="collapsible-header" id="clinical-toggle" onclick="toggleSection('clinical')">
+      <h3>🩺 What does this mean?</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="collapsible-body" id="clinical-body">
+      <div class="clinical-section" id="clinical-content"></div>
+    </div>
+
+    <!-- ═══ Feature 5: Beat-by-beat breakdown (collapsible) ═══ -->
+    <div class="collapsible-header" id="beats-toggle" onclick="toggleSection('beats')">
+      <h3 id="beats-toggle-label">📊 Show beat-by-beat breakdown</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="collapsible-body" id="beats-body">
+      <div id="beats-content"></div>
+    </div>
+
+    <!-- Waveform preview with attention heatmap -->
+    <h3 style="margin-top:20px;margin-bottom:6px;font-size:.9rem;color:#9ca3af">Waveform preview with attention heatmap</h3>
+    <div style="position:relative">
+      <canvas id="ecg-heatmap" height="150" style="position:absolute;top:0;left:0;width:100%;pointer-events:none;border-radius:8px"></canvas>
+      <canvas id="ecg" height="150"></canvas>
+    </div>
+    <div class="chart-legend">
+      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#60a5fa"></div>Actual ECG</div>
+      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#34d399;border:1px dashed #34d399"></div>Normal reference</div>
+      <div class="chart-legend-item"><div class="chart-legend-color" style="background:rgba(239,68,68,0.5);width:14px;height:10px"></div>High attention</div>
+      <div class="chart-legend-item"><div class="chart-legend-color" style="background:rgba(251,191,36,0.3);width:14px;height:10px"></div>Medium attention</div>
+      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#ef4444;width:2px;height:14px"></div>Abnormal beat marker</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ ALERT HISTORY PANEL ═══════════════ -->
+  <div class="alert-section" id="alert-section">
+    <div class="alert-header">
+      <h2>🔔 Session Alert History</h2>
+      <button class="btn-sm danger" onclick="clearAlerts()">Clear All</button>
+    </div>
+    <div class="alert-table-wrap">
+      <div id="alert-table-content">
+        <div class="alert-empty">No alerts yet. Alerts appear when arrhythmia is confirmed (3+ of last 5 beats).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="warn">⚠️ For educational/research use only. Not a medical device. Consult a cardiologist for diagnosis.</div>
+</div>
+
+<script>
+let file=null, chart=null, lastData=null;
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');pick(e.dataTransfer.files[0])});
+
+function pick(f){
+  if(!f)return; file=f;
+  dz.querySelector('h3').textContent='✓ '+f.name;
+  dz.querySelector('p').textContent=(f.size/1024).toFixed(1)+' KB · click to change';
+  document.getElementById('btn').disabled=false;
+  autoDetectFs(f);
+}
+
+/* ═══ Feature 6: Auto-detect sample rate ═══ */
+function autoDetectFs(f){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const text=e.target.result;
+    const lines=text.split('\n').filter(l=>l.trim().length>0);
+    const lineCount=lines.length;
+    const sel=document.getElementById('fs-select');
+    const hint=document.getElementById('fs-hint');
+
+    // Check if first line is a header (non-numeric)
+    let dataLines=lineCount;
+    if(lines.length>0 && isNaN(parseFloat(lines[0].split(',')[0]))){
+      dataLines=lineCount-1;
+    }
+
+    if(dataLines<=250){
+      sel.value='360'; sel.disabled=true;
+      hint.textContent='Auto-detected: single beat — dropdown locked';
+      hint.style.color='#34d399';
+    } else if(dataLines<=5000 && dataLines%187===0){
+      sel.value='360'; sel.disabled=true;
+      hint.textContent='Auto-detected: pre-segmented MIT-BIH beats (125 Hz internal) — dropdown locked';
+      hint.style.color='#34d399';
+    } else if(dataLines>5000){
+      sel.disabled=false;
+      hint.textContent='Raw ECG detected — select your recording device sample rate below';
+      hint.style.color='#fbbf24';
+    } else {
+      sel.disabled=false;
+      hint.textContent='Could not auto-detect format — please select sample rate manually';
+      hint.style.color='#9ca3af';
+    }
+  };
+  reader.readAsText(f.slice(0,100000));
+}
+
+/* ═══ Collapsible section toggling ═══ */
+function toggleSection(name){
+  const hdr=document.getElementById(name+'-toggle');
+  const body=document.getElementById(name+'-body');
+  const isOpen=body.classList.contains('open');
+  if(isOpen){
+    body.classList.remove('open');
+    hdr.classList.remove('open');
+  } else {
+    body.classList.add('open');
+    hdr.classList.add('open');
+  }
+}
+
+/* ═══ Alert history functions ═══ */
+async function fetchAlerts(){
+  try{
+    const r=await fetch('/alerts');
+    const d=await r.json();
+    renderAlerts(d.alerts);
+  }catch(e){console.error('Failed to fetch alerts',e)}
+}
+
+function renderAlerts(alerts){
+  const wrap=document.getElementById('alert-table-content');
+  const section=document.getElementById('alert-section');
+  section.style.display='block';
+
+  if(!alerts||alerts.length===0){
+    wrap.innerHTML='<div class="alert-empty">No alerts yet. Alerts appear when arrhythmia is confirmed (3+ of last 5 beats).</div>';
+    return;
+  }
+
+  let html='<table class="alert-table"><thead><tr>';
+  html+='<th>Time</th><th>File</th><th>Classification</th><th>Confidence</th><th>Severity</th><th>Beats</th><th>Buffer</th><th>Status</th><th>Action</th>';
+  html+='</tr></thead><tbody>';
+
+  alerts.forEach(a=>{
+    const rowClass=a.severity==='HIGH RISK'?'alert-row-high':a.severity==='MODERATE'?'alert-row-moderate':'alert-row-normal';
+    const ackedClass=a.acknowledged?'acked':'';
+    const fname=a.filename.length>20?a.filename.substring(0,18)+'…':a.filename;
+    html+=`<tr class="${rowClass} ${ackedClass}">`;
+    html+=`<td>${a.timestamp}</td>`;
+    html+=`<td title="${a.filename}">${fname}</td>`;
+    html+=`<td>${a.classification}</td>`;
+    html+=`<td>${a.confidence}%</td>`;
+    html+=`<td><span class="badge ${a.severity==='HIGH RISK'?'high-risk':a.severity==='MODERATE'?'moderate':'normal'}" style="font-size:.7rem;padding:2px 8px">${a.severity}</span></td>`;
+    html+=`<td>${a.beats_analyzed}</td>`;
+    html+=`<td>${a.arr_in_buffer}/5</td>`;
+    html+=`<td>${a.acknowledged?'✓ Reviewed':'Pending'}</td>`;
+    html+=`<td>${a.acknowledged?'—':'<button class="btn-sm" onclick="ackAlert('+a.alert_id+')">Ack</button>'}</td>`;
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+
+async function ackAlert(id){
+  try{
+    await fetch('/alerts/'+id+'/ack',{method:'PUT'});
+    fetchAlerts();
+  }catch(e){console.error('Failed to ack alert',e)}
+}
+
+async function clearAlerts(){
+  try{
+    await fetch('/alerts',{method:'DELETE'});
+    fetchAlerts();
+  }catch(e){console.error('Failed to clear alerts',e)}
+}
+
+/* ═══ Draw attention heatmap on canvas ═══ */
+function drawHeatmap(canvasId, attentionScores, abnormalIdx){
+  const heatCanvas=document.getElementById(canvasId);
+  const mainCanvas=document.getElementById('ecg');
+  // Match dimensions
+  heatCanvas.width=mainCanvas.offsetWidth;
+  heatCanvas.height=mainCanvas.offsetHeight;
+  heatCanvas.style.width=mainCanvas.offsetWidth+'px';
+  heatCanvas.style.height=mainCanvas.offsetHeight+'px';
+
+  const ctx=heatCanvas.getContext('2d');
+  ctx.clearRect(0,0,heatCanvas.width,heatCanvas.height);
+
+  if(!attentionScores||attentionScores.length===0) return;
+
+  const w=heatCanvas.width;
+  const h=heatCanvas.height;
+  const n=attentionScores.length;
+  const barW=w/n;
+
+  for(let i=0;i<n;i++){
+    const val=attentionScores[i];
+    if(val>0.6){
+      ctx.fillStyle='rgba(239,68,68,0.25)';
+    } else if(val>0.3){
+      ctx.fillStyle='rgba(251,191,36,0.15)';
+    } else {
+      continue;
+    }
+    ctx.fillRect(i*barW,0,barW+1,h);
+  }
+
+  // Draw abnormal beat marker
+  if(typeof abnormalIdx==='number'){
+    const x=(abnormalIdx/n)*w;
+    ctx.strokeStyle='#ef4444';
+    ctx.lineWidth=2;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label
+    ctx.fillStyle='#ef4444';
+    ctx.font='bold 10px Inter, sans-serif';
+    const labelX = x + 5 > w - 120 ? x - 125 : x + 5;
+    ctx.fillText('▼ Abnormal beat detected here',labelX,14);
+  }
+}
+
+/* ═══ Render clinical explanation ═══ */
+function renderClinical(clinical){
+  const container=document.getElementById('clinical-content');
+  container.innerHTML=`
+    <div class="clinical-title">${clinical.title}</div>
+    <div class="clinical-text">${clinical.explanation}</div>
+    <div class="clinical-box waveform-box">
+      <div class="clinical-box-title">〰️ Waveform Characteristics</div>
+      <div class="clinical-box-text">${clinical.waveform_note}</div>
+    </div>
+    <div class="clinical-box action-box">
+      <div class="clinical-box-title">💊 Recommended Action</div>
+      <div class="clinical-box-text">${clinical.action}</div>
+    </div>
+  `;
+}
+
+/* ═══ Render beat-by-beat breakdown ═══ */
+function renderBeatTable(beats, totalBeats, arrCount, arrPct){
+  document.getElementById('beats-toggle-label').textContent=
+    '📊 Show beat-by-beat breakdown ('+totalBeats+' beats)';
+
+  const classColors={
+    0:'#34d399',1:'#fbbf24',2:'#f87171',3:'#fb923c',4:'#a78bfa'
+  };
+
+  let html='<div class="beat-table-wrap"><table class="beat-table"><thead><tr>';
+  html+='<th>#</th><th>Class</th><th>Confidence</th><th>Arrhythmia</th>';
+  html+='</tr></thead><tbody>';
+
+  beats.forEach(b=>{
+    const color=classColors[b.class_id]||'#d1d5db';
+    html+=`<tr style="color:${color}">`;
+    html+=`<td>${b.beat_num}</td>`;
+    html+=`<td>${b.class_name}</td>`;
+    html+=`<td>${b.confidence}%</td>`;
+    html+=`<td>${b.is_arrhythmia?'⚠️ Yes':'✓ No'}</td>`;
+    html+='</tr>';
+  });
+
+  html+='</tbody></table>';
+  html+=`<div class="beat-summary">${arrCount} of ${totalBeats} beats were arrhythmia (${arrPct}%)</div>`;
+  html+='</div>';
+
+  document.getElementById('beats-content').innerHTML=html;
+}
+
+/* ═══ Render buffer dots ═══ */
+function renderBufferDots(bufferClasses){
+  const dotsEl=document.getElementById('buffer-dots');
+  let html='';
+  // Pad with empty if fewer than 5
+  for(let i=0;i<5;i++){
+    if(i<bufferClasses.length){
+      const cls=bufferClasses[i];
+      html+=`<div class="buffer-dot ${cls===0?'normal-dot':'arr-dot'}" title="${cls===0?'Normal':'Arrhythmia (class '+cls+')'}"></div>`;
+    } else {
+      html+='<div class="buffer-dot empty-dot" title="No data"></div>';
+    }
+  }
+  dotsEl.innerHTML=html;
+}
+
+/* ═══ Main analysis function ═══ */
+async function run(){
+  if(!file)return;
+  document.getElementById('loading').style.display='block';
+  document.getElementById('card').style.display='none';
+  document.getElementById('btn').disabled=true;
+
+  // Close any open collapsibles
+  ['clinical','beats'].forEach(s=>{
+    document.getElementById(s+'-body').classList.remove('open');
+    document.getElementById(s+'-toggle').classList.remove('open');
+  });
+
+  const fd=new FormData(); fd.append('file',file);
+  fd.append('sample_rate', document.getElementById('fs-select').value);
+
+  try{
+    const r=await fetch('/predict',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.error){alert('Error: '+d.error);return;}
+
+    lastData=d;
+
+    // Basic result
+    document.getElementById('rname').textContent=d.prediction;
+    document.getElementById('rsub').textContent=d.confirmed_arrhythmia
+      ?'⚠️ CONFIRMED ARRHYTHMIA — '+d.rhythm_label+' — please consult a cardiologist'
+      : d.is_arrhythmia
+        ?'Potential arrhythmia detected (not yet confirmed in buffer) — monitor closely'
+        :'Normal sinus rhythm detected';
+
+    document.getElementById('s-conf').textContent=d.confidence+'%';
+    document.getElementById('s-win').textContent=d.beats_analyzed;
+    document.getElementById('s-samp').textContent=d.signal_samples.toLocaleString();
+    document.getElementById('s-arr').textContent=d.is_arrhythmia?'Yes':'No';
+    document.getElementById('s-mode').textContent=d.processing_mode;
+    document.getElementById('s-rhythm').textContent=d.rhythm_label;
+
+    // Badge
+    const badge=document.getElementById('badge');
+    badge.textContent=d.severity;
+    badge.className='badge '+(d.severity==='NORMAL'?'normal':d.severity==='HIGH RISK'?'high-risk':'moderate');
+
+    // Buffer dots
+    renderBufferDots(d.buffer_classes||[]);
+    const arrInBuf=d.arr_in_buffer||0;
+    document.getElementById('buffer-status').textContent=
+      d.confirmed_arrhythmia
+        ?'🔴 '+arrInBuf+'/5 arrhythmia beats — CONFIRMED'
+        :'🟢 '+arrInBuf+'/5 arrhythmia beats — not confirmed';
+
+    // RR stats
+    document.getElementById('rr-stats').style.display='grid';
+    document.getElementById('s-rr-mean').textContent=(d.rr_mean||0).toFixed(1);
+    document.getElementById('s-rr-std').textContent=(d.rr_std||0).toFixed(1);
+    const confirmedEl=document.getElementById('s-confirmed');
+    confirmedEl.textContent=d.confirmed_arrhythmia?'YES':'NO';
+    confirmedEl.style.color=d.confirmed_arrhythmia?'#f87171':'#34d399';
+
+    // Probability bars
+    const bars=document.getElementById('bars');
+    bars.innerHTML='';
+    for(const[cls,pct] of Object.entries(d.class_probabilities)){
+      bars.innerHTML+=`<div class="bar-row">
+        <span class="bar-label">${cls}</span>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <span class="bar-pct">${pct}%</span></div>`;
+    }
+
+    // Clinical explanation
+    if(d.clinical_explanation){
+      renderClinical(d.clinical_explanation);
+    }
+
+    // Beat-by-beat breakdown
+    if(d.beat_details){
+      renderBeatTable(d.beat_details, d.beats_analyzed, d.arrhythmia_beat_count, d.arrhythmia_percentage);
+    }
+
+    // ═══ Chart with normal reference overlay ═══
+    if(chart) chart.destroy();
+
+    const datasets=[
+      {
+        label:'ECG Signal',
+        data:d.waveform_preview,
+        borderColor:'#60a5fa',
+        borderWidth:1.5,
+        pointRadius:0,
+        fill:false,
+        tension:0.15,
+        order:1
+      }
+    ];
+
+    // Add normal reference overlay
+    if(d.normal_reference && d.normal_reference.length>0){
+      // Scale normal reference to match the ECG signal range
+      const ecgMin=Math.min(...d.waveform_preview);
+      const ecgMax=Math.max(...d.waveform_preview);
+      const nrMin=Math.min(...d.normal_reference);
+      const nrMax=Math.max(...d.normal_reference);
+      const scaled=d.normal_reference.map(v=>{
+        if(nrMax-nrMin<1e-8) return ecgMin;
+        return ecgMin+(v-nrMin)/(nrMax-nrMin)*(ecgMax-ecgMin);
+      });
+      datasets.push({
+        label:'Normal Reference',
+        data:scaled,
+        borderColor:'#34d399',
+        borderWidth:1.2,
+        borderDash:[5,5],
+        pointRadius:0,
+        fill:false,
+        tension:0.15,
+        order:2
+      });
+    }
+
+    chart=new Chart(document.getElementById('ecg').getContext('2d'),{
+      type:'line',
+      data:{
+        labels:d.waveform_preview.map((_,i)=>i),
+        datasets:datasets
+      },
+      options:{
+        responsive:true,
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{display:false},
+          y:{grid:{color:'#1f2937'},ticks:{color:'#6b7280',font:{size:10}}}
+        },
+        animation:{duration:300}
+      }
+    });
+
+    // Draw attention heatmap after chart renders
+    setTimeout(()=>{
+      drawHeatmap('ecg-heatmap', d.attention_scores, d.abnormal_beat_index);
+    }, 350);
+
+    document.getElementById('card').style.display='block';
+
+    // Fetch and render alert history
+    fetchAlerts();
+
+  }catch(e){alert('Network error: '+e.message);}
+  finally{
+    document.getElementById('loading').style.display='none';
+    document.getElementById('btn').disabled=false;
+  }
+}
+
+// Re-draw heatmap on window resize
+window.addEventListener('resize',()=>{
+  if(lastData && lastData.attention_scores){
+    drawHeatmap('ecg-heatmap', lastData.attention_scores, lastData.abnormal_beat_index);
+  }
+});
+</script>
+</body>
+</html>
