@@ -153,9 +153,14 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 /* Attention explanation */
 .attn-explain{padding:14px 24px;border-bottom:1px solid var(--border);display:none}
 .attn-explain-inner{background:#fef2f2;border:1px solid var(--risk-red-border);border-radius:10px;padding:14px 16px}
-.attn-explain-title{font-size:.72rem;font-weight:700;color:var(--risk-red);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.attn-explain-title{font-size:.72rem;font-weight:700;color:var(--risk-red);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .attn-explain-text{font-size:.8rem;color:var(--txt2);line-height:1.6}
-.attn-explain-meta{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+.attn-section{margin-bottom:10px}
+.attn-section:last-child{margin-bottom:0}
+.attn-section-label{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.attn-section-text{font-size:.8rem;color:var(--txt2);line-height:1.55}
+.attn-waveform-box{background:#fff8f0;border-left:3px solid var(--warn-amber);border-radius:0 6px 6px 0;padding:8px 10px;margin-top:6px}
+.attn-explain-meta{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(220,38,38,.15)}
 .attn-meta-item{font-size:.72rem;color:var(--muted)}
 .attn-meta-item strong{color:var(--txt);font-weight:700}
 
@@ -176,20 +181,26 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
 
 /* Alerts */
 .alert-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-top:20px;display:none;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-.alert-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.alert-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .alert-hdr h2{font-size:.9rem;font-weight:700;color:var(--txt)}
 .btn-sm{padding:5px 12px;border:1px solid var(--border);background:#fff;color:var(--txt2);border-radius:6px;font-size:.72rem;cursor:pointer;transition:all .15s;font-weight:600}
 .btn-sm:hover{background:#f8fafc}
 .btn-sm.danger{border-color:var(--risk-red-border);color:var(--risk-red)}
 .btn-sm.danger:hover{background:var(--risk-red-bg)}
-.alert-tbl-wrap{max-height:250px;overflow-y:auto;border-radius:8px;border:1px solid var(--border)}
-.alert-tbl{width:100%;border-collapse:collapse;font-size:.72rem}
-.alert-tbl th{background:#f8fafc;color:var(--muted);padding:7px 10px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600}
-.alert-tbl td{padding:5px 10px;border-bottom:1px solid #f8fafc;color:var(--txt2)}
-.alert-tbl tr.acked td{text-decoration:line-through;opacity:.4}
-.alert-row-high{background:var(--risk-red-bg)}
-.alert-row-mod{background:var(--warn-amber-bg)}
-.alert-row-norm{background:var(--ok-green-bg)}
+.alert-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.alert-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:#fafafe;transition:all .15s}
+.alert-item:hover{border-color:#c7d2fe;background:#f8f7ff}
+.alert-item.acked{opacity:.4}
+.alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.alert-dot.high{background:var(--risk-red)}
+.alert-dot.mod{background:var(--warn-amber)}
+.alert-dot.norm{background:var(--ok-green)}
+.alert-info{flex:1;min-width:0}
+.alert-info-top{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.alert-class{font-size:.82rem;font-weight:700;color:var(--txt)}
+.alert-conf{font-size:.72rem;color:var(--muted);font-weight:500}
+.alert-info-bottom{font-size:.7rem;color:var(--faint)}
+.alert-actions{flex-shrink:0}
 .alert-empty{text-align:center;padding:24px;color:var(--faint);font-size:.82rem}
 
 .disclaimer{margin-top:24px;padding:10px 16px;background:var(--warn-amber-bg);border-left:3px solid var(--warn-amber);border-radius:8px;font-size:.75rem;color:#78350f}
@@ -335,9 +346,9 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
     <div class="attn-explain" id="attn-explain">
       <div class="attn-explain-inner">
         <div class="attn-explain-title">
-          <span>🔍</span> Why is this region highlighted?
+          <span>🔍</span> Understanding the Highlighted Regions
         </div>
-        <div class="attn-explain-text" id="attn-explain-text"></div>
+        <div id="attn-explain-content"></div>
         <div class="attn-explain-meta" id="attn-explain-meta"></div>
       </div>
     </div>
@@ -362,9 +373,9 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg)
   <div class="alert-panel" id="alert-section">
     <div class="alert-hdr">
       <h2>🔔 Alert History</h2>
-      <button class="btn-sm danger" onclick="clearAlerts()">Clear</button>
+      <button class="btn-sm danger" onclick="clearAlerts()">Clear All</button>
     </div>
-    <div class="alert-tbl-wrap"><div id="alert-table-content"><div class="alert-empty">No alerts yet.</div></div></div>
+    <div class="alert-list" id="alert-list-content"><div class="alert-empty">No alerts yet.</div></div>
   </div>
 
   <div class="disclaimer">⚠️ For educational/research use only. Not a medical device. Consult a cardiologist for diagnosis.</div>
@@ -429,17 +440,24 @@ async function fetchAlerts(){
 }
 
 function renderAlerts(alerts){
-  const wrap=document.getElementById('alert-table-content');
+  const wrap=document.getElementById('alert-list-content');
   document.getElementById('alert-section').style.display='block';
   if(!alerts||alerts.length===0){wrap.innerHTML='<div class="alert-empty">No alerts yet.</div>';return}
-  let h='<table class="alert-tbl"><thead><tr><th>Time</th><th>File</th><th>Class</th><th>Conf</th><th>Severity</th><th>Beats</th><th>Status</th><th></th></tr></thead><tbody>';
+  let h='';
   alerts.forEach(a=>{
-    const rc=a.severity==='HIGH RISK'?'alert-row-high':a.severity==='MODERATE'?'alert-row-mod':'alert-row-norm';
-    const ac=a.acknowledged?'acked':'';
-    const fn=a.filename.length>18?a.filename.substring(0,16)+'\u2026':a.filename;
-    h+=`<tr class="${rc} ${ac}"><td>${a.timestamp}</td><td title="${a.filename}">${fn}</td><td>${a.classification}</td><td>${a.confidence}%</td><td>${a.severity}</td><td>${a.beats_analyzed}</td><td>${a.acknowledged?'\u2713':'Pending'}</td><td>${a.acknowledged?'':('<button class="btn-sm" onclick="ackAlert('+a.alert_id+')">Ack</button>')}</td></tr>`;
+    const dotCls=a.severity==='HIGH RISK'?'high':a.severity==='MODERATE'?'mod':'norm';
+    const acked=a.acknowledged?'acked':'';
+    const fn=a.filename.length>22?a.filename.substring(0,20)+'\u2026':a.filename;
+    h+=`<div class="alert-item ${acked}">`;
+    h+=`<div class="alert-dot ${dotCls}"></div>`;
+    h+=`<div class="alert-info">`;
+    h+=`<div class="alert-info-top"><span class="alert-class">${a.classification}</span><span class="alert-conf">${a.confidence}%</span></div>`;
+    h+=`<div class="alert-info-bottom">${a.timestamp} \u00b7 ${fn} \u00b7 ${a.beats_analyzed} beats</div>`;
+    h+=`</div>`;
+    if(!a.acknowledged) h+=`<div class="alert-actions"><button class="btn-sm" onclick="ackAlert(${a.alert_id})">Dismiss</button></div>`;
+    h+=`</div>`;
   });
-  h+='</tbody></table>';wrap.innerHTML=h;
+  wrap.innerHTML=h;
 }
 
 async function ackAlert(id){try{await fetch('/alerts/'+id+'/ack',{method:'PUT'});fetchAlerts()}catch(e){}}
@@ -542,8 +560,10 @@ async function run(){
     document.getElementById('s-conf').textContent=d.confidence+'%';
 
     // Clinical summary
-    document.getElementById('s-arr').textContent=d.is_arrhythmia?'Yes':'No';
-    document.getElementById('s-arr').className='data-val '+(d.is_arrhythmia?'yes':'no');
+    document.getElementById('s-arr').textContent=d.is_arrhythmia_label;
+    const arrLabelCls = d.is_arrhythmia_label==='Yes'?'yes':(d.is_arrhythmia_label==='No'?'no':'');
+    document.getElementById('s-arr').className='data-val '+arrLabelCls;
+    if(d.is_arrhythmia_label==='Inconclusive') document.getElementById('s-arr').style.color='var(--warn-amber)';
     document.getElementById('s-rhythm').textContent=d.rhythm_label;
     document.getElementById('s-win').textContent=d.beats_analyzed;
     document.getElementById('s-samp').textContent=d.signal_samples.toLocaleString();
@@ -559,8 +579,10 @@ async function run(){
     document.getElementById('s-rr-std').textContent=(d.rr_std||0).toFixed(1)+' ms';
     document.getElementById('s-mode').textContent=d.processing_mode;
     const ce=document.getElementById('s-confirmed');
-    ce.textContent=d.confirmed_arrhythmia?'YES':'NO';
-    ce.style.color=d.confirmed_arrhythmia?'var(--risk-red)':'var(--ok-green)';
+    ce.textContent=d.confirmed_arrhythmia_label;
+    if(d.confirmed_arrhythmia_label==='YES'||d.confirmed_arrhythmia_label==='Yes') ce.style.color='var(--risk-red)';
+    else if(d.confirmed_arrhythmia_label==='Inconclusive') ce.style.color='var(--warn-amber)';
+    else ce.style.color='var(--ok-green)';
 
     // Probability bars
     const bars=document.getElementById('bars');bars.innerHTML='';
@@ -588,13 +610,52 @@ async function run(){
     }
     chart=new Chart(document.getElementById('ecg').getContext('2d'),{type:'line',data:{labels:d.waveform_preview.map((_,i)=>i),datasets:ds},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9}}}},animation:{duration:250}}});
 
-    setTimeout(()=>drawHeatmap('ecg-heatmap',d.attention_scores,d.abnormal_beat_index),300);
+    // Only draw heatmap and attention explanation if there are abnormal beats
+    const hasAbnormal = (d.arrhythmia_beat_count||0) > 0;
 
-    // Attention explanation
-    if(d.attention_explanation){
+    if(hasAbnormal){
+      setTimeout(()=>drawHeatmap('ecg-heatmap',d.attention_scores,d.abnormal_beat_index),300);
+    } else {
+      // Clear the heatmap canvas for normal results
+      setTimeout(()=>{
+        const hc=document.getElementById('ecg-heatmap');
+        const mc=document.getElementById('ecg');
+        hc.width=mc.offsetWidth;hc.height=mc.offsetHeight;
+        hc.style.width=mc.offsetWidth+'px';hc.style.height=mc.offsetHeight+'px';
+        hc.getContext('2d').clearRect(0,0,hc.width,hc.height);
+      },300);
+    }
+
+    // Attention explanation — only show when abnormal beats exist
+    if(hasAbnormal && d.attention_explanation){
       const ae=d.attention_explanation;
       document.getElementById('attn-explain').style.display='block';
-      document.getElementById('attn-explain-text').textContent=ae.description;
+
+      // Build structured explanation
+      let html='';
+
+      // 1. What the red regions mean
+      html+=`<div class="attn-section">`;
+      html+=`<div class="attn-section-label">🟥 What do the red shaded areas mean?</div>`;
+      html+=`<div class="attn-section-text">${ae.red_region_explanation}</div>`;
+      html+=`</div>`;
+
+      // 2. Which beat the AI focused on
+      html+=`<div class="attn-section">`;
+      html+=`<div class="attn-section-label">🎯 Key Beat Identified</div>`;
+      html+=`<div class="attn-section-text">${ae.beat_summary}</div>`;
+      html+=`</div>`;
+
+      // 3. Waveform characteristics (from the correct class)
+      if(ae.waveform_note){
+        html+=`<div class="attn-section">`;
+        html+=`<div class="attn-section-label">📊 Waveform Characteristics — ${ae.clinical_note||ae.beat_class}</div>`;
+        html+=`<div class="attn-waveform-box"><div class="attn-section-text">${ae.waveform_note}</div></div>`;
+        html+=`</div>`;
+      }
+
+      document.getElementById('attn-explain-content').innerHTML=html;
+
       document.getElementById('attn-explain-meta').innerHTML=
         `<span class="attn-meta-item">Beat: <strong>#${ae.beat_index}</strong></span>`+
         `<span class="attn-meta-item">Class: <strong>${ae.beat_class}</strong></span>`+
@@ -611,7 +672,7 @@ async function run(){
   finally{document.getElementById('loading').style.display='none';document.getElementById('btn').disabled=false}
 }
 
-window.addEventListener('resize',()=>{if(lastData&&lastData.attention_scores)drawHeatmap('ecg-heatmap',lastData.attention_scores,lastData.abnormal_beat_index)});
+window.addEventListener('resize',()=>{if(lastData&&lastData.attention_scores&&(lastData.arrhythmia_beat_count||0)>0)drawHeatmap('ecg-heatmap',lastData.attention_scores,lastData.abnormal_beat_index)});
 
 function generatePDF(){
   if(!lastData) return;
@@ -759,9 +820,17 @@ function generatePDF(){
     if(y+20>275){doc.addPage();y=14;pg++;addFooter(pg);}
     sectionTitle('ATTENTION ANALYSIS');
     doc.setTextColor(30,30,30);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
-    const lines=doc.splitTextToSize(d.attention_explanation.description,C-6);
-    doc.text(lines,M+3,y);y+=lines.length*3.5+3;
-    doc.setFontSize(7);doc.setTextColor(100,116,139);
+    const attnLines1=doc.splitTextToSize(d.attention_explanation.red_region_explanation,C-6);
+    doc.text(attnLines1,M+3,y);y+=attnLines1.length*3.5+3;
+    const attnLines2=doc.splitTextToSize(d.attention_explanation.beat_summary,C-6);
+    doc.setFont('helvetica','bold');
+    doc.text(attnLines2,M+3,y);y+=attnLines2.length*3.5+3;
+    if(d.attention_explanation.waveform_note){
+      doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(120,100,0);
+      const wn=doc.splitTextToSize('Waveform: '+d.attention_explanation.waveform_note,C-6);
+      doc.text(wn,M+3,y);y+=wn.length*3.2+3;
+    }
+    doc.setFontSize(7);doc.setTextColor(100,116,139);doc.setFont('helvetica','normal');
     doc.text('Focus Region: '+d.attention_explanation.peak_region+'   |   High Attention: '+d.attention_explanation.high_attention_pct+'% of signal   |   Beat #'+d.attention_explanation.beat_index,M+3,y);
     y+=7;
   }

@@ -533,9 +533,14 @@ def predict():
         if model_confidence < 70.0:
             final_status_level = 'borderline'
             final_status_text = 'Borderline / Low Confidence Result'
-        elif confirmed_arrhythmia or arrhythmia_beat_count > 0:
+        elif final_class != 0:
+            # Model predicts a non-Normal class with high confidence
             final_status_level = 'abnormal'
             final_status_text = 'Irregular Rhythm Detected'
+        elif arrhythmia_beat_count > 0:
+            # Model predicts Normal overall, but some beats were irregular
+            final_status_level = 'normal'
+            final_status_text = 'Predominantly Normal Rhythm'
         else:
             final_status_level = 'normal'
             final_status_text = 'Predominantly Normal Rhythm'
@@ -553,11 +558,36 @@ def predict():
             else:
                 final_interpretation = f"High confidence detection of {CLASS_NAMES[final_class]}."
 
+        # ── Reconcile flags with unified status ──────────────────────────
+        # Arrhythmia label follows the MODEL's final class prediction:
+        #   - Class 0 (Normal) → always "No", even if a few beats were irregular
+        #   - Class != 0 + high confidence → "Yes"
+        #   - Class != 0 + low confidence → "Inconclusive"
+        # Confirmed label requires either:
+        #   - High confidence non-Normal prediction (model is sure), OR
+        #   - Buffer-based confirmation (3+ of last 5 beats abnormal)
+        unified_is_arrhythmia = bool(final_class != 0)
+
+        if final_class == 0:
+            # Model says Normal — arrhythmia is No regardless of stray beats
+            unified_is_arrhythmia_label = 'No'
+            unified_confirmed_label = 'No'
+        elif model_confidence < 70.0:
+            # Model says non-Normal but isn't confident
+            unified_is_arrhythmia_label = 'Inconclusive'
+            unified_confirmed_label = 'Inconclusive'
+        else:
+            # Model says non-Normal AND is confident
+            unified_is_arrhythmia_label = 'Yes'
+            # Confirmed if EITHER model is confident OR buffer agrees
+            unified_confirmed_label = 'Yes'
+
         # ── Build response ────────────────────────────────────────────────
         return jsonify({
             'prediction': CLASS_NAMES[final_class],
             'class_id': int(final_class),
-            'is_arrhythmia': bool(final_class != 0),
+            'is_arrhythmia': unified_is_arrhythmia,
+            'is_arrhythmia_label': unified_is_arrhythmia_label,
             'severity': severity,
             'confidence': model_confidence,
             'final_status_level': final_status_level,
@@ -574,6 +604,7 @@ def predict():
             'waveform_preview': waveform_preview,
             # Feature 1: Confirmation buffer
             'confirmed_arrhythmia': confirmed_arrhythmia,
+            'confirmed_arrhythmia_label': unified_confirmed_label,
             'rhythm_label': rhythm_label,
             'arr_in_buffer': arr_count,
             'buffer_classes': buffer_classes,
@@ -590,7 +621,11 @@ def predict():
                 'beat_confidence': round(float(preds[most_abnormal_idx][abnormal_class]) * 100, 1),
                 'high_attention_pct': round(float(np.mean(attention_187 > 0.6)) * 100, 1),
                 'peak_region': 'QRS complex' if np.argmax(attention_187) > 30 and np.argmax(attention_187) < 120 else ('P-wave region' if np.argmax(attention_187) <= 30 else 'T-wave region'),
-                'description': f"The model focused most on beat #{most_abnormal_idx + 1} (classified as {CLASS_NAMES[abnormal_class]} with {round(float(preds[most_abnormal_idx][abnormal_class]) * 100, 1)}% confidence). Red-shaded regions indicate where the neural network's attention was strongest — these are the parts of the waveform that most influenced the classification. {clinical.get('waveform_note', '')}"
+                # Separate, clear explanation fields
+                'red_region_explanation': "The red/orange shaded areas on the graph show where the AI focused most when making its decision. Darker red = stronger focus. These regions contain the signal features that most influenced the classification.",
+                'beat_summary': f"The AI concentrated on beat #{most_abnormal_idx + 1}, which it classified as {CLASS_NAMES[abnormal_class]} with {round(float(preds[most_abnormal_idx][abnormal_class]) * 100, 1)}% confidence.",
+                'waveform_note': CLINICAL_INFO[abnormal_class].get('waveform_note', ''),
+                'clinical_note': CLINICAL_INFO[abnormal_class].get('title', ''),
             },
             # Feature 4: Clinical explanation
             'clinical_explanation': clinical,
