@@ -197,7 +197,7 @@ def process_raw_ecg(signal, input_fs):
         raise ValueError("No complete beats could be extracted from the signal.")
 
     beats_arr = np.array(beats, dtype=np.float32).reshape(-1, TARGET_LENGTH, 1)
-    return beats_arr, resampled
+    return beats_arr, resampled, r_peaks
 
 
 def detect_mode_and_process(signal, input_fs=None):
@@ -224,17 +224,17 @@ def detect_mode_and_process(signal, input_fs=None):
     # Single pre-segmented beat
     if n <= 250:
         windows, raw = process_already_segmented(signal)
-        return windows, raw, "single beat", len(windows)
+        return windows, raw, "single beat", len(windows), None
 
     # Batch of pre-segmented beats (e.g. rows from mitbih_test.csv flattened)
     if n <= 5000 and n % TARGET_LENGTH == 0:
         windows, raw = process_already_segmented(signal)
         if windows is not None:
-            return windows, raw, "pre-segmented beats", len(windows)
+            return windows, raw, "pre-segmented beats", len(windows), None
 
     # Raw continuous ECG — use the provided sample rate
-    windows, cleaned = process_raw_ecg(signal, input_fs)
-    return windows, cleaned, "raw ECG recording", len(windows)
+    windows, cleaned, r_peaks = process_raw_ecg(signal, input_fs)
+    return windows, cleaned, "raw ECG recording", len(windows), r_peaks
 
 
 # ─── Feature 2: Attention / saliency computation ─────────────────────────────
@@ -270,31 +270,37 @@ def compute_attention(beat, predicted_class):
 
 # ─── Feature 1: Confirmation buffer logic ────────────────────────────────────
 
-def compute_rr_features(windows):
+def compute_rr_features(windows, r_peaks=None, sampling_rate=360):
     """
-    Compute RR interval features from beat windows.
-    Uses the index of the max value in each beat as a proxy for R-peak position.
+    Compute RR interval features.
+    If actual r_peaks are provided (from raw ECG), use real positions.
+    Otherwise estimate from pre-segmented beat count.
+    Returns RR intervals in milliseconds.
     """
-    r_peak_indices = []
-    for i in range(windows.shape[0]):
-        beat = windows[i, :, 0]
-        r_peak_indices.append(int(np.argmax(beat)))
+    # Use actual R-peak positions if available
+    if r_peaks is not None and len(r_peaks) >= 2:
+        rr_samples = np.diff(np.array(r_peaks, dtype=float))
+        rr_ms = (rr_samples / sampling_rate) * 1000  # Convert to ms
+        return {
+            'rr_mean': round(float(np.mean(rr_ms)), 1),
+            'rr_std': round(float(np.std(rr_ms)), 1),
+            'rr_min': round(float(np.min(rr_ms)), 1),
+            'rr_max': round(float(np.max(rr_ms)), 1)
+        }
 
-    if len(r_peak_indices) < 2:
-        return {'rr_mean': 0.0, 'rr_std': 0.0, 'rr_min': 0.0, 'rr_max': 0.0}
+    # Fallback for pre-segmented beats
+    n_beats = windows.shape[0]
+    if n_beats < 2:
+        # Single beat — estimate ~830ms (72 BPM typical)
+        return {'rr_mean': 830.0, 'rr_std': 0.0, 'rr_min': 830.0, 'rr_max': 830.0}
 
-    rr_intervals = np.diff(r_peak_indices).astype(float)
-    # For pre-segmented beats, the RR intervals are between beats' R-peak positions
-    # so we use absolute values since beats are independent
-    rr_intervals = np.abs(rr_intervals)
-    if len(rr_intervals) == 0:
-        return {'rr_mean': 0.0, 'rr_std': 0.0, 'rr_min': 0.0, 'rr_max': 0.0}
-
+    # For pre-segmented MIT-BIH: each beat is 187 samples at ~360Hz ≈ 519ms
+    estimated_rr = 1000.0 * TARGET_LENGTH / sampling_rate
     return {
-        'rr_mean': round(float(np.mean(rr_intervals)), 2),
-        'rr_std': round(float(np.std(rr_intervals)), 2),
-        'rr_min': round(float(np.min(rr_intervals)), 2),
-        'rr_max': round(float(np.max(rr_intervals)), 2)
+        'rr_mean': round(estimated_rr, 1),
+        'rr_std': 0.0,
+        'rr_min': round(estimated_rr, 1),
+        'rr_max': round(estimated_rr, 1)
     }
 
 
@@ -368,25 +374,26 @@ def predict():
         # ── Feature 6: Improved auto-detect with sample rate handling ─────
         n = len(signal)
         is_presegmented = False
+        actual_r_peaks = None
 
         if n <= 250:
             # Single beat
-            windows, cleaned, mode, n_beats = detect_mode_and_process(signal, input_fs)
+            windows, cleaned, mode, n_beats, actual_r_peaks = detect_mode_and_process(signal, input_fs)
             is_presegmented = True
         elif n <= 5000 and n % TARGET_LENGTH == 0:
             # Pre-segmented beats — route directly, ignore user sample rate
-            windows, cleaned, mode, n_beats = detect_mode_and_process(signal, input_fs)
+            windows, cleaned, mode, n_beats, actual_r_peaks = detect_mode_and_process(signal, input_fs)
             is_presegmented = True
         elif n > 1000:
             # Raw ECG
             if input_fs != TARGET_FS:
-                windows, cleaned = process_raw_ecg(signal, input_fs)
+                windows, cleaned, actual_r_peaks = process_raw_ecg(signal, input_fs)
                 n_beats = len(windows)
                 mode = f"raw ECG @ {input_fs} Hz"
             else:
-                windows, cleaned, mode, n_beats = detect_mode_and_process(signal, input_fs)
+                windows, cleaned, mode, n_beats, actual_r_peaks = detect_mode_and_process(signal, input_fs)
         else:
-            windows, cleaned, mode, n_beats = detect_mode_and_process(signal, input_fs)
+            windows, cleaned, mode, n_beats, actual_r_peaks = detect_mode_and_process(signal, input_fs)
 
         # ── Predict ───────────────────────────────────────────────────────
         preds = MODEL.predict(windows, batch_size=128, verbose=0)
@@ -421,8 +428,8 @@ def predict():
         # ── Feature 1: Confirmation buffer ────────────────────────────────
         buffer_list, arr_count = update_confirmation_buffer(per_beat_classes)
 
-        # Compute RR features
-        rr_features = compute_rr_features(windows)
+        # Compute RR features (use actual R-peaks if available)
+        rr_features = compute_rr_features(windows, r_peaks=actual_r_peaks, sampling_rate=TARGET_FS)
         rr_std = rr_features['rr_std']
 
         # Rhythm label
@@ -520,13 +527,42 @@ def predict():
         # ── Waveform preview ──────────────────────────────────────────────
         waveform_preview = cleaned[:500].tolist()
 
+        # ── Unified Interpretation Logic ──────────────────────────────────
+        model_confidence = round(float(avg_probs[final_class]) * 100, 1)
+
+        if model_confidence < 70.0:
+            final_status_level = 'borderline'
+            final_status_text = 'Borderline / Low Confidence Result'
+        elif confirmed_arrhythmia or arrhythmia_beat_count > 0:
+            final_status_level = 'abnormal'
+            final_status_text = 'Irregular Rhythm Detected'
+        else:
+            final_status_level = 'normal'
+            final_status_text = 'Predominantly Normal Rhythm'
+
+        if final_class == 0:
+            if arrhythmia_beat_count > 0:
+                final_interpretation = "Mixed rhythm with intermittent irregularities."
+            elif model_confidence < 70.0:
+                final_interpretation = "Predominantly normal rhythm, but low model confidence requires clinical validation."
+            else:
+                final_interpretation = "High confidence normal sinus rhythm."
+        else:
+            if model_confidence < 70.0:
+                final_interpretation = f"Possible {CLASS_NAMES[final_class]} detected, but low model confidence requires clinical validation."
+            else:
+                final_interpretation = f"High confidence detection of {CLASS_NAMES[final_class]}."
+
         # ── Build response ────────────────────────────────────────────────
         return jsonify({
             'prediction': CLASS_NAMES[final_class],
             'class_id': int(final_class),
             'is_arrhythmia': bool(final_class != 0),
             'severity': severity,
-            'confidence': round(float(avg_probs[final_class]) * 100, 1),
+            'confidence': model_confidence,
+            'final_status_level': final_status_level,
+            'final_status_text': final_status_text,
+            'final_interpretation': final_interpretation,
             'class_probabilities': {
                 CLASS_NAMES[i]: round(float(avg_probs[i]) * 100, 1)
                 for i in range(len(CLASS_NAMES))
@@ -547,6 +583,15 @@ def predict():
             'attention_scores': attention_500.tolist(),
             'normal_reference': normal_reference,
             'abnormal_beat_index': abnormal_beat_index,
+            # Attention explanation
+            'attention_explanation': {
+                'beat_index': most_abnormal_idx + 1,
+                'beat_class': CLASS_NAMES[abnormal_class],
+                'beat_confidence': round(float(preds[most_abnormal_idx][abnormal_class]) * 100, 1),
+                'high_attention_pct': round(float(np.mean(attention_187 > 0.6)) * 100, 1),
+                'peak_region': 'QRS complex' if np.argmax(attention_187) > 30 and np.argmax(attention_187) < 120 else ('P-wave region' if np.argmax(attention_187) <= 30 else 'T-wave region'),
+                'description': f"The model focused most on beat #{most_abnormal_idx + 1} (classified as {CLASS_NAMES[abnormal_class]} with {round(float(preds[most_abnormal_idx][abnormal_class]) * 100, 1)}% confidence). Red-shaded regions indicate where the neural network's attention was strongest — these are the parts of the waveform that most influenced the classification. {clinical.get('waveform_note', '')}"
+            },
             # Feature 4: Clinical explanation
             'clinical_explanation': clinical,
             # Feature 5: Beat-by-beat

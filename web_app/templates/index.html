@@ -3,237 +3,372 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ECG Arrhythmia Detector</title>
-<meta name="description" content="AI-powered ECG arrhythmia detection using a 1D Residual CNN trained on MIT-BIH. Upload heartbeat CSVs for 5-class classification with attention heatmaps and clinical explanations.">
+<title>RhythmSense — AI ECG Analysis</title>
+<meta name="description" content="AI-powered ECG arrhythmia detection. Upload heartbeat CSVs for 5-class classification with clinical explanations.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
+:root{--risk-red:#dc2626;--risk-red-bg:#fef2f2;--risk-red-border:#fecaca;
+--ok-green:#059669;--ok-green-bg:#ecfdf5;--ok-green-border:#a7f3d0;
+--warn-amber:#d97706;--warn-amber-bg:#fffbeb;--warn-amber-border:#fde68a;
+--txt:#0f172a;--txt2:#334155;--muted:#64748b;--faint:#94a3b8;
+--bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;--accent:#4f46e5}
+
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Inter',system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
-.top{padding:24px 32px;border-bottom:1px solid #1f2937;background:linear-gradient(135deg,#0f1117 0%,#131726 100%)}
-.top h1{color:#60a5fa;font-size:1.5rem;letter-spacing:-0.02em}
-.top p{color:#6b7280;font-size:.85rem;margin-top:4px}
-.wrap{max-width:860px;margin:0 auto;padding:32px 16px}
-.dropzone{border:2px dashed #374151;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .3s ease;background:#1a1f2e}
-.dropzone:hover,.dropzone.over{border-color:#60a5fa;background:#1e2a3e;box-shadow:0 0 30px rgba(96,165,250,0.08)}
-.dropzone h3{color:#d1d5db;margin-bottom:8px}
-.dropzone p{color:#9ca3af;font-size:.85rem}
-.btn{padding:12px 36px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:20px;display:block;margin-left:auto;margin-right:auto;transition:all .2s ease;box-shadow:0 4px 12px rgba(37,99,235,0.3)}
-.btn:hover{background:linear-gradient(135deg,#1d4ed8,#2563eb);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,0.4)}
-.btn:disabled{background:#374151;cursor:not-allowed;box-shadow:none;transform:none}
-.card{background:#1a1f2e;border:1px solid #2a2f3e;border-radius:12px;padding:24px;margin-top:24px;display:none;transition:all .3s ease}
-.badge{display:inline-block;padding:5px 14px;border-radius:20px;font-weight:600;font-size:.9rem;letter-spacing:0.02em}
-.normal{background:#064e3b;color:#34d399}
-.moderate{background:#78350f;color:#fbbf24}
-.high-risk{background:#450a0a;color:#f87171}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
-.stat{background:#111827;border-radius:8px;padding:14px;transition:all .2s ease}
-.stat:hover{background:#151d2e}
-.stat .val{font-size:1.4rem;font-weight:700;color:#60a5fa}
-.stat .key{font-size:.75rem;color:#6b7280;margin-top:2px}
-.bar-row{display:flex;align-items:center;gap:10px;margin:6px 0}
-.bar-label{width:170px;font-size:.82rem;color:#9ca3af;flex-shrink:0}
-.bar-bg{flex:1;height:7px;background:#1f2937;border-radius:4px;overflow:hidden}
-.bar-fill{height:7px;border-radius:4px;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .5s ease}
-.bar-pct{width:42px;text-align:right;font-size:.82rem;color:#d1d5db}
-.spin{display:inline-block;width:18px;height:18px;border:2px solid #374151;border-top-color:#60a5fa;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:8px}
-@keyframes sp{to{transform:rotate(360deg)}}
-.warn{margin-top:28px;padding:10px 14px;background:#1c1a00;border-left:3px solid #ca8a04;border-radius:4px;font-size:.78rem;color:#ca8a04}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ── */
+.header{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#3730a3 100%);position:relative;overflow:hidden;padding:18px 32px}
+.header-content{position:relative;z-index:2;display:flex;align-items:center;gap:12px}
+.header h1{color:#fff;font-size:1.4rem;font-weight:800;letter-spacing:-.02em}
+.header-pill{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:12px;font-size:.6rem;font-weight:700;padding:2px 8px;color:#c7d2fe;text-transform:uppercase;letter-spacing:.08em}
+
+/* ECG Animation */
+.ecg-svg{position:absolute;top:0;left:0;width:200%;height:100%;opacity:.12}
+.ecg-path{fill:none;stroke:#a5b4fc;stroke-width:1.5;filter:drop-shadow(0 0 3px rgba(165,180,252,.5));animation:ecg-scroll 4s linear infinite}
+@keyframes ecg-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ── LAYOUT ── */
+.main{max-width:960px;margin:0 auto;padding:24px 16px}
+
+/* ── UPLOAD ── */
+.upload-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.dropzone{border:2px dashed #c7d2fe;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafafe}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:#f5f3ff}
+.dz-icon{font-size:2rem;display:block;margin-bottom:8px}
+.dropzone h3{font-size:1rem;font-weight:700;color:var(--txt);margin-bottom:4px}
+.dropzone p{font-size:.8rem;color:var(--muted)}
 #file-input{display:none}
+.analyze-btn{display:block;margin:16px auto 0;padding:11px 32px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.9rem;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(79,70,229,.25)}
+.analyze-btn:hover{background:#4338ca;transform:translateY(-1px);box-shadow:0 4px 14px rgba(79,70,229,.35)}
+.analyze-btn:disabled{background:#94a3b8;box-shadow:none;transform:none;cursor:not-allowed}
+.fs-hint{text-align:center;margin-top:8px;font-size:.75rem;color:var(--muted);min-height:16px}
 
-/* Buffer dots */
-.buffer-dots{display:flex;gap:6px;align-items:center;margin-top:8px;justify-content:center}
-.buffer-dot{width:16px;height:16px;border-radius:50%;border:2px solid #374151;transition:all .3s ease}
-.buffer-dot.normal-dot{background:#34d399;border-color:#064e3b;box-shadow:0 0 6px rgba(52,211,153,0.4)}
-.buffer-dot.arr-dot{background:#f87171;border-color:#450a0a;box-shadow:0 0 6px rgba(248,113,113,0.4)}
-.buffer-dot.empty-dot{background:#1f2937;border-color:#374151}
+/* Report button */
+.report-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:.78rem;font-weight:700;color:var(--accent);cursor:pointer;transition:all .2s;margin-top:10px}
+.report-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(79,70,229,.25)}
+.report-btn svg{width:14px;height:14px;fill:currentColor}
 
-/* Chart legend */
-.chart-legend{display:flex;gap:16px;justify-content:center;margin-top:10px;flex-wrap:wrap}
-.chart-legend-item{display:flex;align-items:center;gap:6px;font-size:.75rem;color:#9ca3af}
-.chart-legend-color{width:14px;height:4px;border-radius:2px}
+/* How it works */
+.info-section{margin-top:24px}
+.info-title{font-size:.72rem;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;text-align:center}
+.info-steps{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:640px){.info-steps{grid-template-columns:1fr}}
+.info-step{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 16px;text-align:center;transition:all .2s}
+.info-step:hover{border-color:#c7d2fe;box-shadow:0 2px 10px rgba(79,70,229,.08)}
+.info-step-num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:.72rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px}
+.info-step-title{font-size:.85rem;font-weight:700;color:var(--txt);margin-bottom:4px}
+.info-step-desc{font-size:.75rem;color:var(--muted);line-height:1.5}
+.info-formats{display:flex;justify-content:center;gap:20px;margin-top:16px;flex-wrap:wrap}
+.info-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;background:#f8fafc;border:1px solid var(--border);font-size:.72rem;color:var(--txt2);font-weight:600}
+.info-chip span{font-size:.85rem}
 
-/* Collapsible sections */
-.collapsible-header{background:#111827;border:1px solid #2a2f3e;border-radius:8px;padding:12px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-top:16px;transition:all .2s ease;user-select:none}
-.collapsible-header:hover{background:#151d2e;border-color:#374151}
-.collapsible-header h3{font-size:.88rem;color:#d1d5db;font-weight:600}
-.collapsible-header .arrow{color:#60a5fa;transition:transform .3s ease;font-size:.85rem}
-.collapsible-header.open .arrow{transform:rotate(180deg)}
-.collapsible-body{overflow:hidden;max-height:0;transition:max-height .4s ease,opacity .3s ease;opacity:0}
-.collapsible-body.open{max-height:3000px;opacity:1}
+/* ── LOADING ── */
+.loading{text-align:center;margin-top:20px;display:none;color:var(--muted);font-size:.85rem}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
 
-/* Clinical explanation */
-.clinical-section{background:#111827;border-radius:8px;padding:20px;margin-top:10px}
-.clinical-title{font-size:1.1rem;font-weight:700;color:#f9fafb;margin-bottom:10px}
-.clinical-text{font-size:.88rem;color:#d1d5db;line-height:1.65;margin-bottom:14px}
-.clinical-box{background:#0f1117;border:1px solid #2a2f3e;border-radius:8px;padding:14px;margin-bottom:12px}
-.clinical-box-title{font-size:.78rem;font-weight:600;color:#60a5fa;margin-bottom:6px;display:flex;align-items:center;gap:6px}
-.clinical-box-text{font-size:.82rem;color:#9ca3af;line-height:1.6}
-.action-box{border-left:3px solid #34d399}
-.waveform-box{border-left:3px solid #fbbf24}
+/* ── RESULT CARD ── */
+.result-card{background:var(--card);border:1px solid var(--border);border-radius:16px;margin-top:20px;display:none;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden}
+
+/* Primary strip */
+.primary-strip{padding:20px 24px;border-bottom:1px solid var(--border)}
+.primary-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.primary-left{flex:1;min-width:200px}
+.risk-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.risk-high{background:var(--risk-red-bg);color:var(--risk-red);border:1px solid var(--risk-red-border)}
+.risk-yellow{background:var(--warn-amber-bg);color:var(--warn-amber);border:1px solid var(--warn-amber-border)}
+.risk-normal{background:var(--ok-green-bg);color:var(--ok-green);border:1px solid var(--ok-green-border)}
+#rname{font-size:1.5rem;font-weight:800;color:var(--txt);line-height:1.2;margin-bottom:4px}
+#interpretation-box{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+#i-model, #i-beats{font-size:.82rem;color:var(--muted)}
+#i-final{font-size:.85rem;font-weight:600;color:var(--txt);margin-top:2px}
+#i-warn{font-size:.75rem;color:var(--warn-amber);font-weight:600;display:none}
+.confidence-box{text-align:right;flex-shrink:0}
+.confidence-val{font-size:2rem;font-weight:800;color:var(--accent);line-height:1}
+.confidence-label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:2px}
+
+/* Middle 2-col */
+.mid-section{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+@media(max-width:640px){.mid-section{grid-template-columns:1fr}}
+.mid-left{padding:20px 24px;border-right:1px solid var(--border)}
+@media(max-width:640px){.mid-left{border-right:none;border-bottom:1px solid var(--border)}}
+.mid-right{padding:20px 24px}
+.sec-label{font-size:.68rem;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+.data-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9}
+.data-row:last-child{border-bottom:none}
+.data-key{font-size:.82rem;color:var(--muted)}
+.data-val{font-size:.82rem;font-weight:700;color:var(--txt)}
+.data-val.yes{color:var(--risk-red)}
+.data-val.no{color:var(--ok-green)}
+
+/* Probability bars */
+.prob-row{display:flex;align-items:center;gap:8px;margin:5px 0}
+.prob-label{width:130px;font-size:.78rem;color:var(--muted);flex-shrink:0}
+.prob-label.highlight{color:var(--txt);font-weight:700}
+.prob-bar-bg{flex:1;height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden}
+.prob-bar-fill{height:8px;border-radius:4px;transition:width .5s ease}
+.prob-bar-fill.fill-high{background:var(--risk-red)}
+.prob-bar-fill.fill-normal{background:var(--accent)}
+.prob-bar-fill.fill-muted{background:#cbd5e1}
+.prob-pct{width:40px;text-align:right;font-size:.78rem;font-weight:600;color:var(--txt2)}
+.prob-pct.muted{color:var(--faint)}
+
+/* Bottom low-priority */
+.bottom-strip{padding:14px 24px;background:#f8fafc;display:flex;gap:24px;flex-wrap:wrap}
+.bottom-item{display:flex;flex-direction:column}
+.bottom-val{font-size:.82rem;font-weight:600;color:var(--txt2)}
+.bottom-key{font-size:.65rem;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-top:1px}
+
+/* Buffer */
+.buffer-strip{padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.buffer-dots{display:flex;gap:5px}
+.buffer-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border)}
+.buffer-dot.n{background:var(--ok-green);border-color:var(--ok-green-border)}
+.buffer-dot.a{background:var(--risk-red);border-color:var(--risk-red-border)}
+.buffer-dot.e{background:#e2e8f0}
+#buffer-text{font-size:.75rem;color:var(--muted)}
+
+/* Collapsibles */
+.collapse-btn{width:100%;background:none;border:none;border-bottom:1px solid var(--border);padding:12px 24px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:.82rem;font-weight:600;color:var(--txt2);transition:background .15s}
+.collapse-btn:hover{background:#f8fafc}
+.collapse-btn:last-of-type{border-bottom:none}
+.collapse-arrow{color:var(--accent);transition:transform .3s;font-size:.8rem}
+.collapse-btn.open .collapse-arrow{transform:rotate(180deg)}
+.collapse-body{overflow:hidden;max-height:0;transition:max-height .35s ease,opacity .25s;opacity:0}
+.collapse-body.open{max-height:3000px;opacity:1}
+.collapse-inner{padding:16px 24px;border-bottom:1px solid var(--border)}
+
+/* Clinical */
+.clin-title{font-size:1rem;font-weight:700;color:var(--txt);margin-bottom:8px}
+.clin-text{font-size:.83rem;color:var(--txt2);line-height:1.65;margin-bottom:12px}
+.clin-box{background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:8px}
+.clin-box-label{font-size:.7rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.clin-box-text{font-size:.8rem;color:var(--txt2);line-height:1.5}
+.clin-box.action{border-left:3px solid var(--ok-green)}
+.clin-box.wave{border-left:3px solid var(--warn-amber)}
+
+/* Attention explanation */
+.attn-explain{padding:14px 24px;border-bottom:1px solid var(--border);display:none}
+.attn-explain-inner{background:#fef2f2;border:1px solid var(--risk-red-border);border-radius:10px;padding:14px 16px}
+.attn-explain-title{font-size:.72rem;font-weight:700;color:var(--risk-red);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.attn-explain-text{font-size:.8rem;color:var(--txt2);line-height:1.6}
+.attn-explain-meta{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+.attn-meta-item{font-size:.72rem;color:var(--muted)}
+.attn-meta-item strong{color:var(--txt);font-weight:700}
 
 /* Beat table */
-.beat-table-wrap{max-height:400px;overflow-y:auto;margin-top:10px;border-radius:8px;border:1px solid #2a2f3e}
-.beat-table{width:100%;border-collapse:collapse;font-size:.82rem}
-.beat-table th{background:#111827;color:#9ca3af;padding:10px 12px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600;border-bottom:1px solid #2a2f3e}
-.beat-table td{padding:8px 12px;border-bottom:1px solid #1f2937}
-.beat-table tr:hover{background:#151d2e}
-.beat-summary{padding:12px 16px;background:#111827;border-radius:0 0 8px 8px;font-size:.85rem;color:#d1d5db;border-top:1px solid #2a2f3e;font-weight:600}
+.beat-tbl-wrap{max-height:360px;overflow-y:auto}
+.beat-tbl{width:100%;border-collapse:collapse;font-size:.78rem}
+.beat-tbl th{background:#f8fafc;color:var(--muted);padding:8px 12px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+.beat-tbl td{padding:7px 12px;border-bottom:1px solid #f1f5f9;color:var(--txt2)}
+.beat-tbl tr:hover{background:#fafafe}
+.beat-summary{padding:10px 12px;background:#f8fafc;font-size:.8rem;color:var(--txt2);font-weight:600}
 
-/* Alert history */
-.alert-section{background:#1a1f2e;border:1px solid #2a2f3e;border-radius:12px;padding:24px;margin-top:24px;display:none}
-.alert-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.alert-header h2{font-size:1rem;color:#9ca3af;font-weight:600}
-.btn-sm{padding:6px 16px;border:1px solid #374151;background:#1f2937;color:#d1d5db;border-radius:6px;font-size:.78rem;cursor:pointer;transition:all .2s ease}
-.btn-sm:hover{background:#2a2f3e;border-color:#4b5563}
-.btn-sm.danger{border-color:#450a0a;color:#f87171}
-.btn-sm.danger:hover{background:#1a0000}
-.alert-table-wrap{max-height:300px;overflow-y:auto;border-radius:8px;border:1px solid #2a2f3e}
-.alert-table{width:100%;border-collapse:collapse;font-size:.78rem}
-.alert-table th{background:#111827;color:#9ca3af;padding:8px 10px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600;border-bottom:1px solid #2a2f3e}
-.alert-table td{padding:6px 10px;border-bottom:1px solid #1f2937}
-.alert-table tr.acked td{text-decoration:line-through;opacity:0.5}
-.alert-row-high{background:#1a0000}
-.alert-row-moderate{background:#1a1000}
-.alert-row-normal{background:#001a0a}
-.alert-empty{text-align:center;padding:24px;color:#6b7280;font-size:.85rem}
+/* Waveform chart */
+.chart-section{padding:16px 24px;border-bottom:1px solid var(--border)}
+.chart-wrap{position:relative;background:#fafafe;border-radius:8px;padding:8px}
+.chart-legend{display:flex;gap:14px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.chart-legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--muted)}
+.chart-legend-swatch{width:12px;height:3px;border-radius:2px}
 
-/* FS hint */
-.fs-hint{text-align:center;margin-top:6px;font-size:.78rem;color:#9ca3af;transition:all .3s ease;min-height:18px}
+/* Alerts */
+.alert-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-top:20px;display:none;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.alert-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.alert-hdr h2{font-size:.9rem;font-weight:700;color:var(--txt)}
+.btn-sm{padding:5px 12px;border:1px solid var(--border);background:#fff;color:var(--txt2);border-radius:6px;font-size:.72rem;cursor:pointer;transition:all .15s;font-weight:600}
+.btn-sm:hover{background:#f8fafc}
+.btn-sm.danger{border-color:var(--risk-red-border);color:var(--risk-red)}
+.btn-sm.danger:hover{background:var(--risk-red-bg)}
+.alert-tbl-wrap{max-height:250px;overflow-y:auto;border-radius:8px;border:1px solid var(--border)}
+.alert-tbl{width:100%;border-collapse:collapse;font-size:.72rem}
+.alert-tbl th{background:#f8fafc;color:var(--muted);padding:7px 10px;text-align:left;position:sticky;top:0;z-index:1;font-weight:600}
+.alert-tbl td{padding:5px 10px;border-bottom:1px solid #f8fafc;color:var(--txt2)}
+.alert-tbl tr.acked td{text-decoration:line-through;opacity:.4}
+.alert-row-high{background:var(--risk-red-bg)}
+.alert-row-mod{background:var(--warn-amber-bg)}
+.alert-row-norm{background:var(--ok-green-bg)}
+.alert-empty{text-align:center;padding:24px;color:var(--faint);font-size:.82rem}
 
-/* Scrollbar styling */
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-track{background:#0f1117}
-::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:#4b5563}
+.disclaimer{margin-top:24px;padding:10px 16px;background:var(--warn-amber-bg);border-left:3px solid var(--warn-amber);border-radius:8px;font-size:.75rem;color:#78350f}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
 </style>
 </head>
 <body>
-<div class="top">
-  <h1>⚡ ECG Arrhythmia Detector</h1>
-  <p>Upload a heartbeat CSV · 1D Residual CNN · MIT-BIH 5-class classification · Attention heatmaps</p>
-</div>
-<div class="wrap">
-  <!-- Upload zone -->
-  <div class="dropzone" id="dz" onclick="document.getElementById('file-input').click()">
-    <h3>Drop ECG file here or click to browse</h3>
-    <p>Accepts .csv or .txt — one voltage value per row · max 10 MB</p>
-    <input type="file" id="file-input" accept=".csv,.txt,.npy" onchange="pick(this.files[0])">
-  </div>
 
-  <!-- Sample rate selector -->
-  <div style="margin-top:16px; display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap;">
-    <label style="color:#9ca3af; font-size:.85rem;">
-      Device sample rate (Hz):
-      <select id="fs-select" style="margin-left:8px; background:#1f2937; color:#d1d5db; border:1px solid #374151; border-radius:6px; padding:4px 10px; font-size:.85rem;">
-        <option value="360" selected>360 Hz (MIT-BIH default)</option>
-        <option value="500">500 Hz (most hospital ECGs)</option>
-        <option value="1000">1000 Hz (high-res Holter)</option>
-        <option value="256">256 Hz (some wearables)</option>
-        <option value="128">128 Hz (older devices)</option>
-        <option value="250">250 Hz</option>
-      </select>
-    </label>
-    <button class="btn" id="btn" onclick="run()" disabled>Analyze ECG</button>
+<!-- ═══ HEADER ═══ -->
+<header class="header">
+  <svg class="ecg-svg" viewBox="0 0 2400 50" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <polyline class="ecg-path" points="0.0,25 20.0,25 30.0,25 40.0,24 48.0,21 52.0,23 56.0,25 60.0,25 68.0,26 72.0,38 76.0,4 80.0,42 84.0,25 88.0,25 100.0,25 110.0,23 120.0,20 130.0,22 140.0,25 160.0,25 180.0,25 200.0,25 200.0,25 220.0,25 230.0,25 240.0,24 248.0,21 252.0,23 256.0,25 260.0,25 268.0,26 272.0,38 276.0,4 280.0,42 284.0,25 288.0,25 300.0,25 310.0,23 320.0,20 330.0,22 340.0,25 360.0,25 380.0,25 400.0,25 400.0,25 420.0,25 430.0,25 440.0,24 448.0,21 452.0,23 456.0,25 460.0,25 468.0,26 472.0,38 476.0,4 480.0,42 484.0,25 488.0,25 500.0,25 510.0,23 520.0,20 530.0,22 540.0,25 560.0,25 580.0,25 600.0,25 600.0,25 620.0,25 630.0,25 640.0,24 648.0,21 652.0,23 656.0,25 660.0,25 668.0,26 672.0,38 676.0,4 680.0,42 684.0,25 688.0,25 700.0,25 710.0,23 720.0,20 730.0,22 740.0,25 760.0,25 780.0,25 800.0,25 800.0,25 820.0,25 830.0,25 840.0,24 848.0,21 852.0,23 856.0,25 860.0,25 868.0,26 872.0,38 876.0,4 880.0,42 884.0,25 888.0,25 900.0,25 910.0,23 920.0,20 930.0,22 940.0,25 960.0,25 980.0,25 1000.0,25 1000.0,25 1020.0,25 1030.0,25 1040.0,24 1048.0,21 1052.0,23 1056.0,25 1060.0,25 1068.0,26 1072.0,38 1076.0,4 1080.0,42 1084.0,25 1088.0,25 1100.0,25 1110.0,23 1120.0,20 1130.0,22 1140.0,25 1160.0,25 1180.0,25 1200.0,25 1200.0,25 1220.0,25 1230.0,25 1240.0,24 1248.0,21 1252.0,23 1256.0,25 1260.0,25 1268.0,26 1272.0,38 1276.0,4 1280.0,42 1284.0,25 1288.0,25 1300.0,25 1310.0,23 1320.0,20 1330.0,22 1340.0,25 1360.0,25 1380.0,25 1400.0,25 1400.0,25 1420.0,25 1430.0,25 1440.0,24 1448.0,21 1452.0,23 1456.0,25 1460.0,25 1468.0,26 1472.0,38 1476.0,4 1480.0,42 1484.0,25 1488.0,25 1500.0,25 1510.0,23 1520.0,20 1530.0,22 1540.0,25 1560.0,25 1580.0,25 1600.0,25 1600.0,25 1620.0,25 1630.0,25 1640.0,24 1648.0,21 1652.0,23 1656.0,25 1660.0,25 1668.0,26 1672.0,38 1676.0,4 1680.0,42 1684.0,25 1688.0,25 1700.0,25 1710.0,23 1720.0,20 1730.0,22 1740.0,25 1760.0,25 1780.0,25 1800.0,25 1800.0,25 1820.0,25 1830.0,25 1840.0,24 1848.0,21 1852.0,23 1856.0,25 1860.0,25 1868.0,26 1872.0,38 1876.0,4 1880.0,42 1884.0,25 1888.0,25 1900.0,25 1910.0,23 1920.0,20 1930.0,22 1940.0,25 1960.0,25 1980.0,25 2000.0,25 2000.0,25 2020.0,25 2030.0,25 2040.0,24 2048.0,21 2052.0,23 2056.0,25 2060.0,25 2068.0,26 2072.0,38 2076.0,4 2080.0,42 2084.0,25 2088.0,25 2100.0,25 2110.0,23 2120.0,20 2130.0,22 2140.0,25 2160.0,25 2180.0,25 2200.0,25 2200.0,25 2220.0,25 2230.0,25 2240.0,24 2248.0,21 2252.0,23 2256.0,25 2260.0,25 2268.0,26 2272.0,38 2276.0,4 2280.0,42 2284.0,25 2288.0,25 2300.0,25 2310.0,23 2320.0,20 2330.0,22 2340.0,25 2360.0,25 2380.0,25 2400.0,25" />
+  </svg>
+  <div class="header-content">
+    <span style="font-size:1.3rem">🫀</span>
+    <h1>RhythmSense</h1>
+    <span class="header-pill">AI</span>
   </div>
+</header>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+
+  <!-- Upload -->
+  <div class="upload-wrap">
+    <div class="dropzone" id="dz" onclick="document.getElementById('file-input').click()">
+      <span class="dz-icon">📁</span>
+      <h3>Drop your ECG file here</h3>
+      <p>Supports .csv or .txt &middot; One voltage value per row &middot; Max 10 MB</p>
+      <input type="file" id="file-input" accept=".csv,.txt,.npy" onchange="pick(this.files[0])">
+    </div>
+  </div>
+  <input type="hidden" id="fs-select" value="360">
+  <button class="analyze-btn" id="btn" onclick="run()" disabled>Analyze ECG</button>
   <div id="fs-hint" class="fs-hint"></div>
+  <div id="loading" class="loading"><span class="spin"></span>Analyzing ECG signal...</div>
 
-  <!-- Loading indicator -->
-  <div id="loading" style="text-align:center;margin-top:20px;display:none">
-    <span class="spin"></span>Analyzing...
+  <!-- How it works (visible before first analysis) -->
+  <div class="info-section" id="info-section">
+    <div class="info-title">How It Works</div>
+    <div class="info-steps">
+      <div class="info-step">
+        <div class="info-step-num">1</div>
+        <div class="info-step-title">Upload ECG</div>
+        <div class="info-step-desc">Drop a CSV or TXT file containing ECG voltage values — one value per row. The sample rate is auto-detected.</div>
+      </div>
+      <div class="info-step">
+        <div class="info-step-num">2</div>
+        <div class="info-step-title">AI Analysis</div>
+        <div class="info-step-desc">A 1D Residual CNN trained on the MIT-BIH dataset classifies each heartbeat into 5 categories with attention heatmaps.</div>
+      </div>
+      <div class="info-step">
+        <div class="info-step-num">3</div>
+        <div class="info-step-title">Get Results</div>
+        <div class="info-step-desc">See risk level, confidence, per-beat breakdown, clinical explanation, and waveform visualization — all in seconds.</div>
+      </div>
+    </div>
+    <div class="info-formats">
+      <div class="info-chip"><span>📄</span> .csv files</div>
+      <div class="info-chip"><span>📝</span> .txt files</div>
+      <div class="info-chip"><span>🫀</span> MIT-BIH format</div>
+      <div class="info-chip"><span>📊</span> Raw ECG recordings</div>
+    </div>
   </div>
 
-  <!-- ═══════════════ RESULT CARD ═══════════════ -->
-  <div class="card" id="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <h2 style="font-size:1rem;color:#9ca3af">Result</h2>
-      <span id="badge" class="badge"></span>
-    </div>
-    <div id="rname" style="font-size:1.5rem;font-weight:700;color:#f9fafb"></div>
-    <div id="rsub" style="font-size:.85rem;color:#9ca3af;margin-top:4px;margin-bottom:18px"></div>
+  <!-- ═══ RESULT CARD ═══ -->
+  <div class="result-card" id="card">
 
-    <!-- Stats grid -->
-    <div class="grid">
-      <div class="stat"><div class="val" id="s-conf"></div><div class="key">Confidence</div></div>
-      <div class="stat"><div class="val" id="s-win"></div><div class="key">Beats analyzed</div></div>
-      <div class="stat"><div class="val" id="s-samp"></div><div class="key">Signal samples</div></div>
-      <div class="stat"><div class="val" id="s-arr"></div><div class="key">Arrhythmia?</div></div>
-      <div class="stat"><div class="val" id="s-mode" style="font-size:.95rem"></div><div class="key">Processing mode</div></div>
-      <div class="stat"><div class="val" id="s-rhythm" style="font-size:.85rem"></div><div class="key">Rhythm label</div></div>
+    <!-- Primary strip: Risk + Diagnosis + Confidence -->
+    <div class="primary-strip">
+      <div class="primary-top">
+        <div class="primary-left">
+          <div id="badge" class="risk-badge"></div>
+          <div id="rname"></div>
+          <div id="interpretation-box">
+            <div id="i-model"></div>
+            <div id="i-beats"></div>
+            <div id="i-final"></div>
+            <div id="i-warn">⚠ Low confidence — requires clinical validation</div>
+          </div>
+        </div>
+        <div class="confidence-box">
+          <div class="confidence-val" id="s-conf"></div>
+          <div class="confidence-label">Confidence</div>
+          <button class="report-btn" onclick="generatePDF()">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zm-3 9h4v1h-4v-1zm0 2h4v1h-4v-1zm-2-4h8v1H8v-1z"/></svg>
+            Download Report
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- Confirmation buffer visualization -->
-    <div style="background:#111827;border-radius:8px;padding:14px;margin-top:12px;text-align:center">
-      <div style="font-size:.75rem;color:#6b7280;margin-bottom:6px">Last 5 Beat Buffer</div>
+    <!-- Buffer strip -->
+    <div class="buffer-strip">
+      <span style="font-size:.68rem;font-weight:700;color:var(--accent);letter-spacing:.08em;text-transform:uppercase">Recent Beat Pattern</span>
       <div class="buffer-dots" id="buffer-dots"></div>
-      <div id="buffer-status" style="font-size:.75rem;color:#9ca3af;margin-top:6px"></div>
+      <span id="buffer-text"></span>
     </div>
 
-    <!-- RR interval features -->
-    <div class="grid-3" id="rr-stats" style="display:none">
-      <div class="stat"><div class="val" id="s-rr-mean" style="font-size:1.1rem"></div><div class="key">RR Mean</div></div>
-      <div class="stat"><div class="val" id="s-rr-std" style="font-size:1.1rem"></div><div class="key">RR Std (irregularity)</div></div>
-      <div class="stat">
-        <div class="val" id="s-confirmed" style="font-size:1.1rem"></div>
-        <div class="key">Confirmed Arrhythmia</div>
+    <!-- Mid section: Clinical summary + Probabilities -->
+    <div class="mid-section">
+      <div class="mid-left">
+        <div class="sec-label">Clinical Summary</div>
+        <div class="data-row"><span class="data-key">Arrhythmia</span><span class="data-val" id="s-arr"></span></div>
+        <div class="data-row"><span class="data-key">Rhythm</span><span class="data-val" id="s-rhythm"></span></div>
+        <div class="data-row"><span class="data-key">Beats Analyzed</span><span class="data-val" id="s-win"></span></div>
+        <div class="data-row"><span class="data-key">Signal Samples</span><span class="data-val" id="s-samp"></span></div>
+      </div>
+      <div class="mid-right">
+        <div class="sec-label">Model Confidence Distribution</div>
+        <div style="font-size:0.65rem; color:var(--muted); margin-bottom:8px;">Note: Raw model distribution, not final clinical diagnosis.</div>
+        <div id="bars"></div>
       </div>
     </div>
 
-    <!-- Class probabilities -->
-    <h3 style="margin-top:20px;margin-bottom:10px;font-size:.9rem;color:#9ca3af">Class probabilities</h3>
-    <div id="bars"></div>
-
-    <!-- ═══ Feature 4: Clinical explanation (collapsible) ═══ -->
-    <div class="collapsible-header" id="clinical-toggle" onclick="toggleSection('clinical')">
-      <h3>🩺 What does this mean?</h3>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="collapsible-body" id="clinical-body">
-      <div class="clinical-section" id="clinical-content"></div>
+    <!-- Bottom: low priority stats -->
+    <div class="bottom-strip" id="rr-stats" style="display:none">
+      <div class="bottom-item"><span class="bottom-val" id="s-rr-mean"></span><span class="bottom-key">RR Mean</span></div>
+      <div class="bottom-item"><span class="bottom-val" id="s-rr-std"></span><span class="bottom-key">RR Std</span></div>
+      <div class="bottom-item"><span class="bottom-val" id="s-mode"></span><span class="bottom-key">Processing Mode</span></div>
+      <div class="bottom-item"><span class="bottom-val" id="s-confirmed"></span><span class="bottom-key">Confirmed</span></div>
     </div>
 
-    <!-- ═══ Feature 5: Beat-by-beat breakdown (collapsible) ═══ -->
-    <div class="collapsible-header" id="beats-toggle" onclick="toggleSection('beats')">
-      <h3 id="beats-toggle-label">📊 Show beat-by-beat breakdown</h3>
-      <span class="arrow">▼</span>
-    </div>
-    <div class="collapsible-body" id="beats-body">
-      <div id="beats-content"></div>
-    </div>
-
-    <!-- Waveform preview with attention heatmap -->
-    <h3 style="margin-top:20px;margin-bottom:6px;font-size:.9rem;color:#9ca3af">Waveform preview with attention heatmap</h3>
-    <div style="position:relative">
-      <canvas id="ecg-heatmap" height="150" style="position:absolute;top:0;left:0;width:100%;pointer-events:none;border-radius:8px"></canvas>
-      <canvas id="ecg" height="150"></canvas>
-    </div>
-    <div class="chart-legend">
-      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#60a5fa"></div>Actual ECG</div>
-      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#34d399;border:1px dashed #34d399"></div>Normal reference</div>
-      <div class="chart-legend-item"><div class="chart-legend-color" style="background:rgba(239,68,68,0.5);width:14px;height:10px"></div>High attention</div>
-      <div class="chart-legend-item"><div class="chart-legend-color" style="background:rgba(251,191,36,0.3);width:14px;height:10px"></div>Medium attention</div>
-      <div class="chart-legend-item"><div class="chart-legend-color" style="background:#ef4444;width:2px;height:14px"></div>Abnormal beat marker</div>
-    </div>
-  </div>
-
-  <!-- ═══════════════ ALERT HISTORY PANEL ═══════════════ -->
-  <div class="alert-section" id="alert-section">
-    <div class="alert-header">
-      <h2>🔔 Session Alert History</h2>
-      <button class="btn-sm danger" onclick="clearAlerts()">Clear All</button>
-    </div>
-    <div class="alert-table-wrap">
-      <div id="alert-table-content">
-        <div class="alert-empty">No alerts yet. Alerts appear when arrhythmia is confirmed (3+ of last 5 beats).</div>
+    <!-- Waveform chart -->
+    <div class="chart-section">
+      <div class="sec-label" style="margin-bottom:8px">Waveform &amp; Attention</div>
+      <div class="chart-wrap">
+        <canvas id="ecg-heatmap" height="130" style="position:absolute;top:0;left:0;width:100%;pointer-events:none;border-radius:8px"></canvas>
+        <canvas id="ecg" height="130"></canvas>
+      </div>
+      <div class="chart-legend">
+        <div class="chart-legend-item"><div class="chart-legend-swatch" style="background:#4f46e5"></div>ECG Signal</div>
+        <div class="chart-legend-item"><div class="chart-legend-swatch" style="background:#10b981;border:1px dashed #10b981"></div>Normal Ref</div>
+        <div class="chart-legend-item"><div class="chart-legend-swatch" style="background:rgba(220,38,38,.4);width:12px;height:8px"></div>High Attention</div>
+        <div class="chart-legend-item"><div class="chart-legend-swatch" style="background:#dc2626;width:1px;height:12px"></div>Abnormal Beat</div>
       </div>
     </div>
+
+    <!-- Attention explanation -->
+    <div class="attn-explain" id="attn-explain">
+      <div class="attn-explain-inner">
+        <div class="attn-explain-title">
+          <span>🔍</span> Why is this region highlighted?
+        </div>
+        <div class="attn-explain-text" id="attn-explain-text"></div>
+        <div class="attn-explain-meta" id="attn-explain-meta"></div>
+      </div>
+    </div>
+
+    <!-- Collapsibles -->
+    <button class="collapse-btn" id="clinical-toggle" onclick="toggleSection('clinical')">
+      <span>🩺 Clinical Explanation</span><span class="collapse-arrow">▼</span>
+    </button>
+    <div class="collapse-body" id="clinical-body">
+      <div class="collapse-inner" id="clinical-content"></div>
+    </div>
+
+    <button class="collapse-btn" id="beats-toggle" onclick="toggleSection('beats')">
+      <span id="beats-toggle-label">📊 Beat-by-Beat Breakdown</span><span class="collapse-arrow">▼</span>
+    </button>
+    <div class="collapse-body" id="beats-body">
+      <div class="collapse-inner" id="beats-content"></div>
+    </div>
   </div>
 
-  <!-- Disclaimer -->
-  <div class="warn">⚠️ For educational/research use only. Not a medical device. Consult a cardiologist for diagnosis.</div>
-</div>
+  <!-- Alert panel -->
+  <div class="alert-panel" id="alert-section">
+    <div class="alert-hdr">
+      <h2>🔔 Alert History</h2>
+      <button class="btn-sm danger" onclick="clearAlerts()">Clear</button>
+    </div>
+    <div class="alert-tbl-wrap"><div id="alert-table-content"><div class="alert-empty">No alerts yet.</div></div></div>
+  </div>
+
+  <div class="disclaimer">⚠️ For educational/research use only. Not a medical device. Consult a cardiologist for diagnosis.</div>
+</main>
 
 <script>
 let file=null, chart=null, lastData=null;
@@ -244,394 +379,434 @@ dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');pi
 
 function pick(f){
   if(!f)return; file=f;
-  dz.querySelector('h3').textContent='✓ '+f.name;
-  dz.querySelector('p').textContent=(f.size/1024).toFixed(1)+' KB · click to change';
+  dz.querySelector('h3').textContent='\u2713 '+f.name;
+  dz.querySelector('p').textContent=(f.size/1024).toFixed(1)+' KB \u00b7 click to change';
   document.getElementById('btn').disabled=false;
   autoDetectFs(f);
 }
 
-/* ═══ Feature 6: Auto-detect sample rate ═══ */
 function autoDetectFs(f){
   const reader=new FileReader();
   reader.onload=e=>{
     const text=e.target.result;
     const lines=text.split('\n').filter(l=>l.trim().length>0);
     const lineCount=lines.length;
-    const sel=document.getElementById('fs-select');
+    const fsInput=document.getElementById('fs-select');
     const hint=document.getElementById('fs-hint');
-
-    // Check if first line is a header (non-numeric)
     let dataLines=lineCount;
-    if(lines.length>0 && isNaN(parseFloat(lines[0].split(',')[0]))){
-      dataLines=lineCount-1;
-    }
-
+    if(lines.length>0 && isNaN(parseFloat(lines[0].split(',')[0]))) dataLines=lineCount-1;
     if(dataLines<=250){
-      sel.value='360'; sel.disabled=true;
-      hint.textContent='Auto-detected: single beat — dropdown locked';
-      hint.style.color='#34d399';
+      fsInput.value='360';
+      hint.textContent='\u2713 Auto-detected: single pre-segmented beat';
+      hint.style.color='#059669';
     } else if(dataLines<=5000 && dataLines%187===0){
-      sel.value='360'; sel.disabled=true;
-      hint.textContent='Auto-detected: pre-segmented MIT-BIH beats (125 Hz internal) — dropdown locked';
-      hint.style.color='#34d399';
+      fsInput.value='360';
+      hint.textContent='\u2713 Auto-detected: MIT-BIH pre-segmented beats';
+      hint.style.color='#059669';
     } else if(dataLines>5000){
-      sel.disabled=false;
-      hint.textContent='Raw ECG detected — select your recording device sample rate below';
-      hint.style.color='#fbbf24';
+      fsInput.value='360';
+      hint.textContent='\u2713 Raw ECG recording \u2014 using 360 Hz default';
+      hint.style.color='#4f46e5';
     } else {
-      sel.disabled=false;
-      hint.textContent='Could not auto-detect format — please select sample rate manually';
-      hint.style.color='#9ca3af';
+      fsInput.value='360';
+      hint.textContent='Format auto-detected \u2014 360 Hz default';
+      hint.style.color='#64748b';
     }
   };
   reader.readAsText(f.slice(0,100000));
 }
 
-/* ═══ Collapsible section toggling ═══ */
 function toggleSection(name){
-  const hdr=document.getElementById(name+'-toggle');
+  const btn=document.getElementById(name+'-toggle');
   const body=document.getElementById(name+'-body');
   const isOpen=body.classList.contains('open');
-  if(isOpen){
-    body.classList.remove('open');
-    hdr.classList.remove('open');
-  } else {
-    body.classList.add('open');
-    hdr.classList.add('open');
-  }
+  if(isOpen){body.classList.remove('open');btn.classList.remove('open')}
+  else{body.classList.add('open');btn.classList.add('open')}
 }
 
-/* ═══ Alert history functions ═══ */
 async function fetchAlerts(){
-  try{
-    const r=await fetch('/alerts');
-    const d=await r.json();
-    renderAlerts(d.alerts);
-  }catch(e){console.error('Failed to fetch alerts',e)}
+  try{const r=await fetch('/alerts');const d=await r.json();renderAlerts(d.alerts)}catch(e){console.error(e)}
 }
 
 function renderAlerts(alerts){
   const wrap=document.getElementById('alert-table-content');
-  const section=document.getElementById('alert-section');
-  section.style.display='block';
-
-  if(!alerts||alerts.length===0){
-    wrap.innerHTML='<div class="alert-empty">No alerts yet. Alerts appear when arrhythmia is confirmed (3+ of last 5 beats).</div>';
-    return;
-  }
-
-  let html='<table class="alert-table"><thead><tr>';
-  html+='<th>Time</th><th>File</th><th>Classification</th><th>Confidence</th><th>Severity</th><th>Beats</th><th>Buffer</th><th>Status</th><th>Action</th>';
-  html+='</tr></thead><tbody>';
-
+  document.getElementById('alert-section').style.display='block';
+  if(!alerts||alerts.length===0){wrap.innerHTML='<div class="alert-empty">No alerts yet.</div>';return}
+  let h='<table class="alert-tbl"><thead><tr><th>Time</th><th>File</th><th>Class</th><th>Conf</th><th>Severity</th><th>Beats</th><th>Status</th><th></th></tr></thead><tbody>';
   alerts.forEach(a=>{
-    const rowClass=a.severity==='HIGH RISK'?'alert-row-high':a.severity==='MODERATE'?'alert-row-moderate':'alert-row-normal';
-    const ackedClass=a.acknowledged?'acked':'';
-    const fname=a.filename.length>20?a.filename.substring(0,18)+'…':a.filename;
-    html+=`<tr class="${rowClass} ${ackedClass}">`;
-    html+=`<td>${a.timestamp}</td>`;
-    html+=`<td title="${a.filename}">${fname}</td>`;
-    html+=`<td>${a.classification}</td>`;
-    html+=`<td>${a.confidence}%</td>`;
-    html+=`<td><span class="badge ${a.severity==='HIGH RISK'?'high-risk':a.severity==='MODERATE'?'moderate':'normal'}" style="font-size:.7rem;padding:2px 8px">${a.severity}</span></td>`;
-    html+=`<td>${a.beats_analyzed}</td>`;
-    html+=`<td>${a.arr_in_buffer}/5</td>`;
-    html+=`<td>${a.acknowledged?'✓ Reviewed':'Pending'}</td>`;
-    html+=`<td>${a.acknowledged?'—':'<button class="btn-sm" onclick="ackAlert('+a.alert_id+')">Ack</button>'}</td>`;
-    html+='</tr>';
+    const rc=a.severity==='HIGH RISK'?'alert-row-high':a.severity==='MODERATE'?'alert-row-mod':'alert-row-norm';
+    const ac=a.acknowledged?'acked':'';
+    const fn=a.filename.length>18?a.filename.substring(0,16)+'\u2026':a.filename;
+    h+=`<tr class="${rc} ${ac}"><td>${a.timestamp}</td><td title="${a.filename}">${fn}</td><td>${a.classification}</td><td>${a.confidence}%</td><td>${a.severity}</td><td>${a.beats_analyzed}</td><td>${a.acknowledged?'\u2713':'Pending'}</td><td>${a.acknowledged?'':('<button class="btn-sm" onclick="ackAlert('+a.alert_id+')">Ack</button>')}</td></tr>`;
   });
-  html+='</tbody></table>';
-  wrap.innerHTML=html;
+  h+='</tbody></table>';wrap.innerHTML=h;
 }
 
-async function ackAlert(id){
-  try{
-    await fetch('/alerts/'+id+'/ack',{method:'PUT'});
-    fetchAlerts();
-  }catch(e){console.error('Failed to ack alert',e)}
-}
+async function ackAlert(id){try{await fetch('/alerts/'+id+'/ack',{method:'PUT'});fetchAlerts()}catch(e){}}
+async function clearAlerts(){try{await fetch('/alerts',{method:'DELETE'});fetchAlerts()}catch(e){}}
 
-async function clearAlerts(){
-  try{
-    await fetch('/alerts',{method:'DELETE'});
-    fetchAlerts();
-  }catch(e){console.error('Failed to clear alerts',e)}
-}
-
-/* ═══ Draw attention heatmap on canvas ═══ */
-function drawHeatmap(canvasId, attentionScores, abnormalIdx){
-  const heatCanvas=document.getElementById(canvasId);
-  const mainCanvas=document.getElementById('ecg');
-  // Match dimensions
-  heatCanvas.width=mainCanvas.offsetWidth;
-  heatCanvas.height=mainCanvas.offsetHeight;
-  heatCanvas.style.width=mainCanvas.offsetWidth+'px';
-  heatCanvas.style.height=mainCanvas.offsetHeight+'px';
-
-  const ctx=heatCanvas.getContext('2d');
-  ctx.clearRect(0,0,heatCanvas.width,heatCanvas.height);
-
-  if(!attentionScores||attentionScores.length===0) return;
-
-  const w=heatCanvas.width;
-  const h=heatCanvas.height;
-  const n=attentionScores.length;
-  const barW=w/n;
-
+function drawHeatmap(canvasId,scores,abnIdx){
+  const hc=document.getElementById(canvasId);const mc=document.getElementById('ecg');
+  hc.width=mc.offsetWidth;hc.height=mc.offsetHeight;hc.style.width=mc.offsetWidth+'px';hc.style.height=mc.offsetHeight+'px';
+  const ctx=hc.getContext('2d');ctx.clearRect(0,0,hc.width,hc.height);
+  if(!scores||scores.length===0)return;
+  const w=hc.width,h=hc.height,n=scores.length,bw=w/n;
   for(let i=0;i<n;i++){
-    const val=attentionScores[i];
-    if(val>0.6){
-      ctx.fillStyle='rgba(239,68,68,0.25)';
-    } else if(val>0.3){
-      ctx.fillStyle='rgba(251,191,36,0.15)';
-    } else {
-      continue;
-    }
-    ctx.fillRect(i*barW,0,barW+1,h);
+    const v=scores[i];
+    if(v>0.6) ctx.fillStyle='rgba(220,38,38,0.18)';
+    else if(v>0.3) ctx.fillStyle='rgba(217,119,6,0.10)';
+    else continue;
+    ctx.fillRect(i*bw,0,bw+1,h);
   }
-
-  // Draw abnormal beat marker
-  if(typeof abnormalIdx==='number'){
-    const x=(abnormalIdx/n)*w;
-    ctx.strokeStyle='#ef4444';
-    ctx.lineWidth=2;
-    ctx.setLineDash([4,4]);
-    ctx.beginPath();
-    ctx.moveTo(x,0);
-    ctx.lineTo(x,h);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Label
-    ctx.fillStyle='#ef4444';
-    ctx.font='bold 10px Inter, sans-serif';
-    const labelX = x + 5 > w - 120 ? x - 125 : x + 5;
-    ctx.fillText('▼ Abnormal beat detected here',labelX,14);
+  if(typeof abnIdx==='number'){
+    const x=(abnIdx/n)*w;
+    ctx.strokeStyle='#dc2626';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#dc2626';ctx.font='bold 9px Inter,sans-serif';
+    ctx.fillText('\u25bc Abnormal',x+4>w-80?x-84:x+4,12);
   }
 }
 
-/* ═══ Render clinical explanation ═══ */
-function renderClinical(clinical){
-  const container=document.getElementById('clinical-content');
-  container.innerHTML=`
-    <div class="clinical-title">${clinical.title}</div>
-    <div class="clinical-text">${clinical.explanation}</div>
-    <div class="clinical-box waveform-box">
-      <div class="clinical-box-title">〰️ Waveform Characteristics</div>
-      <div class="clinical-box-text">${clinical.waveform_note}</div>
-    </div>
-    <div class="clinical-box action-box">
-      <div class="clinical-box-title">💊 Recommended Action</div>
-      <div class="clinical-box-text">${clinical.action}</div>
-    </div>
-  `;
+function renderClinical(c){
+  document.getElementById('clinical-content').innerHTML=`
+    <div class="clin-title">${c.title}</div>
+    <div class="clin-text">${c.explanation}</div>
+    <div class="clin-box wave"><div class="clin-box-label">Waveform Characteristics</div><div class="clin-box-text">${c.waveform_note}</div></div>
+    <div class="clin-box action"><div class="clin-box-label">Recommended Action</div><div class="clin-box-text">${c.action}</div></div>`;
 }
 
-/* ═══ Render beat-by-beat breakdown ═══ */
-function renderBeatTable(beats, totalBeats, arrCount, arrPct){
-  document.getElementById('beats-toggle-label').textContent=
-    '📊 Show beat-by-beat breakdown ('+totalBeats+' beats)';
-
-  const classColors={
-    0:'#34d399',1:'#fbbf24',2:'#f87171',3:'#fb923c',4:'#a78bfa'
-  };
-
-  let html='<div class="beat-table-wrap"><table class="beat-table"><thead><tr>';
-  html+='<th>#</th><th>Class</th><th>Confidence</th><th>Arrhythmia</th>';
-  html+='</tr></thead><tbody>';
-
+function renderBeatTable(beats,total,arrC,arrP){
+  document.getElementById('beats-toggle-label').textContent='\ud83d\udcca Beat-by-Beat ('+total+' beats)';
+  let h='<div class="beat-tbl-wrap"><table class="beat-tbl"><thead><tr><th>#</th><th>Class</th><th>Confidence</th><th>Status</th></tr></thead><tbody>';
   beats.forEach(b=>{
-    const color=classColors[b.class_id]||'#d1d5db';
-    html+=`<tr style="color:${color}">`;
-    html+=`<td>${b.beat_num}</td>`;
-    html+=`<td>${b.class_name}</td>`;
-    html+=`<td>${b.confidence}%</td>`;
-    html+=`<td>${b.is_arrhythmia?'⚠️ Yes':'✓ No'}</td>`;
-    html+='</tr>';
+    const c=b.is_arrhythmia?'color:var(--risk-red)':'color:var(--ok-green)';
+    h+=`<tr style="${c}"><td>${b.beat_num}</td><td>${b.class_name}</td><td>${b.confidence}%</td><td>${b.is_arrhythmia?'\u26a0\ufe0f Yes':'\u2713 No'}</td></tr>`;
   });
-
-  html+='</tbody></table>';
-  html+=`<div class="beat-summary">${arrCount} of ${totalBeats} beats were arrhythmia (${arrPct}%)</div>`;
-  html+='</div>';
-
-  document.getElementById('beats-content').innerHTML=html;
+  h+=`</tbody></table><div class="beat-summary">${arrC} of ${total} beats arrhythmia (${arrP}%)</div></div>`;
+  document.getElementById('beats-content').innerHTML=h;
 }
 
-/* ═══ Render buffer dots ═══ */
-function renderBufferDots(bufferClasses){
-  const dotsEl=document.getElementById('buffer-dots');
-  let html='';
-  // Pad with empty if fewer than 5
+function renderBufferDots(bc){
+  const el=document.getElementById('buffer-dots');let h='';
   for(let i=0;i<5;i++){
-    if(i<bufferClasses.length){
-      const cls=bufferClasses[i];
-      html+=`<div class="buffer-dot ${cls===0?'normal-dot':'arr-dot'}" title="${cls===0?'Normal':'Arrhythmia (class '+cls+')'}"></div>`;
-    } else {
-      html+='<div class="buffer-dot empty-dot" title="No data"></div>';
-    }
+    if(i<bc.length) h+=`<div class="buffer-dot ${bc[i]===0?'n':'a'}" title="${bc[i]===0?'Normal':'Arrhythmia'}"></div>`;
+    else h+='<div class="buffer-dot e"></div>';
   }
-  dotsEl.innerHTML=html;
+  el.innerHTML=h;
 }
 
-/* ═══ Main analysis function ═══ */
 async function run(){
   if(!file)return;
   document.getElementById('loading').style.display='block';
   document.getElementById('card').style.display='none';
   document.getElementById('btn').disabled=true;
+  const infoEl=document.getElementById('info-section'); if(infoEl) infoEl.style.display='none';
+  ['clinical','beats'].forEach(s=>{document.getElementById(s+'-body').classList.remove('open');document.getElementById(s+'-toggle').classList.remove('open')});
 
-  // Close any open collapsibles
-  ['clinical','beats'].forEach(s=>{
-    document.getElementById(s+'-body').classList.remove('open');
-    document.getElementById(s+'-toggle').classList.remove('open');
-  });
-
-  const fd=new FormData(); fd.append('file',file);
-  fd.append('sample_rate', document.getElementById('fs-select').value);
+  const fd=new FormData();fd.append('file',file);
+  fd.append('sample_rate',document.getElementById('fs-select').value);
 
   try{
     const r=await fetch('/predict',{method:'POST',body:fd});
     const d=await r.json();
-    if(d.error){alert('Error: '+d.error);return;}
-
+    if(d.error){alert('Error: '+d.error);return}
     lastData=d;
 
-    // Basic result
+    // Primary
     document.getElementById('rname').textContent=d.prediction;
-    document.getElementById('rsub').textContent=d.confirmed_arrhythmia
-      ?'⚠️ CONFIRMED ARRHYTHMIA — '+d.rhythm_label+' — please consult a cardiologist'
-      : d.is_arrhythmia
-        ?'Potential arrhythmia detected (not yet confirmed in buffer) — monitor closely'
-        :'Normal sinus rhythm detected';
 
-    document.getElementById('s-conf').textContent=d.confidence+'%';
-    document.getElementById('s-win').textContent=d.beats_analyzed;
-    document.getElementById('s-samp').textContent=d.signal_samples.toLocaleString();
-    document.getElementById('s-arr').textContent=d.is_arrhythmia?'Yes':'No';
-    document.getElementById('s-mode').textContent=d.processing_mode;
-    document.getElementById('s-rhythm').textContent=d.rhythm_label;
+    // Interpretation Section
+    document.getElementById('i-model').textContent=`Model Prediction: ${d.prediction} (${d.confidence}%)`;
+    const totalBeats=d.beats_analyzed||0;
+    const arrBeats=d.arrhythmia_beat_count||0;
+    document.getElementById('i-beats').textContent=`Irregular Beats Detected: ${arrBeats} out of ${totalBeats}`;
+    document.getElementById('i-final').textContent=`Final Interpretation: ${d.final_interpretation}`;
+    
+    // Warning text if low confidence
+    if(d.confidence < 70.0){
+      document.getElementById('i-warn').style.display='block';
+    } else {
+      document.getElementById('i-warn').style.display='none';
+    }
 
     // Badge
     const badge=document.getElementById('badge');
-    badge.textContent=d.severity;
-    badge.className='badge '+(d.severity==='NORMAL'?'normal':d.severity==='HIGH RISK'?'high-risk':'moderate');
+    const badgeIcon = d.final_status_level === 'normal' ? '✓ ' : '⚠ ';
+    badge.textContent = badgeIcon + d.final_status_text;
+    
+    if(d.final_status_level === 'normal') badge.className='risk-badge risk-normal';
+    else if(d.final_status_level === 'borderline') badge.className='risk-badge risk-yellow';
+    else badge.className='risk-badge risk-high';
 
-    // Buffer dots
+    // Confidence
+    document.getElementById('s-conf').textContent=d.confidence+'%';
+
+    // Clinical summary
+    document.getElementById('s-arr').textContent=d.is_arrhythmia?'Yes':'No';
+    document.getElementById('s-arr').className='data-val '+(d.is_arrhythmia?'yes':'no');
+    document.getElementById('s-rhythm').textContent=d.rhythm_label;
+    document.getElementById('s-win').textContent=d.beats_analyzed;
+    document.getElementById('s-samp').textContent=d.signal_samples.toLocaleString();
+
+    // Buffer
     renderBufferDots(d.buffer_classes||[]);
-    const arrInBuf=d.arr_in_buffer||0;
-    document.getElementById('buffer-status').textContent=
-      d.confirmed_arrhythmia
-        ?'🔴 '+arrInBuf+'/5 arrhythmia beats — CONFIRMED'
-        :'🟢 '+arrInBuf+'/5 arrhythmia beats — not confirmed';
+    const ac=d.arr_in_buffer||0;
+    document.getElementById('buffer-text').textContent=`${ac}/5 irregular beats in latest window`;
 
-    // RR stats
-    document.getElementById('rr-stats').style.display='grid';
-    document.getElementById('s-rr-mean').textContent=(d.rr_mean||0).toFixed(1);
-    document.getElementById('s-rr-std').textContent=(d.rr_std||0).toFixed(1);
-    const confirmedEl=document.getElementById('s-confirmed');
-    confirmedEl.textContent=d.confirmed_arrhythmia?'YES':'NO';
-    confirmedEl.style.color=d.confirmed_arrhythmia?'#f87171':'#34d399';
+    // Bottom stats
+    document.getElementById('rr-stats').style.display='flex';
+    document.getElementById('s-rr-mean').textContent=(d.rr_mean||0).toFixed(1)+' ms';
+    document.getElementById('s-rr-std').textContent=(d.rr_std||0).toFixed(1)+' ms';
+    document.getElementById('s-mode').textContent=d.processing_mode;
+    const ce=document.getElementById('s-confirmed');
+    ce.textContent=d.confirmed_arrhythmia?'YES':'NO';
+    ce.style.color=d.confirmed_arrhythmia?'var(--risk-red)':'var(--ok-green)';
 
     // Probability bars
-    const bars=document.getElementById('bars');
-    bars.innerHTML='';
+    const bars=document.getElementById('bars');bars.innerHTML='';
+    const maxClass=d.class_id;
     for(const[cls,pct] of Object.entries(d.class_probabilities)){
-      bars.innerHTML+=`<div class="bar-row">
-        <span class="bar-label">${cls}</span>
-        <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
-        <span class="bar-pct">${pct}%</span></div>`;
+      const isMax=cls===d.prediction;
+      const fillCls=isMax?(d.is_arrhythmia?'fill-high':'fill-normal'):'fill-muted';
+      bars.innerHTML+=`<div class="prob-row"><span class="prob-label ${isMax?'highlight':''}">${cls}</span><div class="prob-bar-bg"><div class="prob-bar-fill ${fillCls}" style="width:${pct}%"></div></div><span class="prob-pct ${isMax?'':'muted'}">${pct}%</span></div>`;
     }
 
-    // Clinical explanation
-    if(d.clinical_explanation){
-      renderClinical(d.clinical_explanation);
+    // Clinical
+    if(d.clinical_explanation) renderClinical(d.clinical_explanation);
+
+    // Beat table
+    if(d.beat_details) renderBeatTable(d.beat_details,d.beats_analyzed,d.arrhythmia_beat_count,d.arrhythmia_percentage);
+
+    // Chart
+    if(chart)chart.destroy();
+    const ds=[{label:'ECG',data:d.waveform_preview,borderColor:'#4f46e5',borderWidth:1.5,pointRadius:0,fill:false,tension:.15,order:1}];
+    if(d.normal_reference&&d.normal_reference.length>0){
+      const eMin=Math.min(...d.waveform_preview),eMax=Math.max(...d.waveform_preview);
+      const nMin=Math.min(...d.normal_reference),nMax=Math.max(...d.normal_reference);
+      const sc=d.normal_reference.map(v=>nMax-nMin<1e-8?eMin:eMin+(v-nMin)/(nMax-nMin)*(eMax-eMin));
+      ds.push({label:'Normal',data:sc,borderColor:'#10b981',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false,tension:.15,order:2});
     }
+    chart=new Chart(document.getElementById('ecg').getContext('2d'),{type:'line',data:{labels:d.waveform_preview.map((_,i)=>i),datasets:ds},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#e2e8f0'},ticks:{color:'#94a3b8',font:{size:9}}}},animation:{duration:250}}});
 
-    // Beat-by-beat breakdown
-    if(d.beat_details){
-      renderBeatTable(d.beat_details, d.beats_analyzed, d.arrhythmia_beat_count, d.arrhythmia_percentage);
+    setTimeout(()=>drawHeatmap('ecg-heatmap',d.attention_scores,d.abnormal_beat_index),300);
+
+    // Attention explanation
+    if(d.attention_explanation){
+      const ae=d.attention_explanation;
+      document.getElementById('attn-explain').style.display='block';
+      document.getElementById('attn-explain-text').textContent=ae.description;
+      document.getElementById('attn-explain-meta').innerHTML=
+        `<span class="attn-meta-item">Beat: <strong>#${ae.beat_index}</strong></span>`+
+        `<span class="attn-meta-item">Class: <strong>${ae.beat_class}</strong></span>`+
+        `<span class="attn-meta-item">Confidence: <strong>${ae.beat_confidence}%</strong></span>`+
+        `<span class="attn-meta-item">Focus Region: <strong>${ae.peak_region}</strong></span>`+
+        `<span class="attn-meta-item">High Attention: <strong>${ae.high_attention_pct}%</strong> of signal</span>`;
+    } else {
+      document.getElementById('attn-explain').style.display='none';
     }
-
-    // ═══ Chart with normal reference overlay ═══
-    if(chart) chart.destroy();
-
-    const datasets=[
-      {
-        label:'ECG Signal',
-        data:d.waveform_preview,
-        borderColor:'#60a5fa',
-        borderWidth:1.5,
-        pointRadius:0,
-        fill:false,
-        tension:0.15,
-        order:1
-      }
-    ];
-
-    // Add normal reference overlay
-    if(d.normal_reference && d.normal_reference.length>0){
-      // Scale normal reference to match the ECG signal range
-      const ecgMin=Math.min(...d.waveform_preview);
-      const ecgMax=Math.max(...d.waveform_preview);
-      const nrMin=Math.min(...d.normal_reference);
-      const nrMax=Math.max(...d.normal_reference);
-      const scaled=d.normal_reference.map(v=>{
-        if(nrMax-nrMin<1e-8) return ecgMin;
-        return ecgMin+(v-nrMin)/(nrMax-nrMin)*(ecgMax-ecgMin);
-      });
-      datasets.push({
-        label:'Normal Reference',
-        data:scaled,
-        borderColor:'#34d399',
-        borderWidth:1.2,
-        borderDash:[5,5],
-        pointRadius:0,
-        fill:false,
-        tension:0.15,
-        order:2
-      });
-    }
-
-    chart=new Chart(document.getElementById('ecg').getContext('2d'),{
-      type:'line',
-      data:{
-        labels:d.waveform_preview.map((_,i)=>i),
-        datasets:datasets
-      },
-      options:{
-        responsive:true,
-        plugins:{legend:{display:false}},
-        scales:{
-          x:{display:false},
-          y:{grid:{color:'#1f2937'},ticks:{color:'#6b7280',font:{size:10}}}
-        },
-        animation:{duration:300}
-      }
-    });
-
-    // Draw attention heatmap after chart renders
-    setTimeout(()=>{
-      drawHeatmap('ecg-heatmap', d.attention_scores, d.abnormal_beat_index);
-    }, 350);
 
     document.getElementById('card').style.display='block';
-
-    // Fetch and render alert history
     fetchAlerts();
-
-  }catch(e){alert('Network error: '+e.message);}
-  finally{
-    document.getElementById('loading').style.display='none';
-    document.getElementById('btn').disabled=false;
-  }
+  }catch(e){alert('Network error: '+e.message)}
+  finally{document.getElementById('loading').style.display='none';document.getElementById('btn').disabled=false}
 }
 
-// Re-draw heatmap on window resize
-window.addEventListener('resize',()=>{
-  if(lastData && lastData.attention_scores){
-    drawHeatmap('ecg-heatmap', lastData.attention_scores, lastData.abnormal_beat_index);
+window.addEventListener('resize',()=>{if(lastData&&lastData.attention_scores)drawHeatmap('ecg-heatmap',lastData.attention_scores,lastData.abnormal_beat_index)});
+
+function generatePDF(){
+  if(!lastData) return;
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const d=lastData;
+  const W=210,M=18,C=W-M*2;
+  let y=0;
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  const timeStr=now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+
+  // ── helpers ──
+  function addFooter(pg){
+    doc.setDrawColor(200,200,200);doc.setLineWidth(0.2);
+    doc.line(M,282,W-M,282);
+    doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(160,160,160);
+    doc.text('RhythmSense AI \u2022 ECG Arrhythmia Analysis Report \u2022 For educational/research use only',M,286);
+    doc.text('Page '+pg,W-M,286,{align:'right'});
   }
-});
+  function sectionTitle(label){
+    if(y+12>275){doc.addPage();y=14;pg++;addFooter(pg);}
+    doc.setFillColor(79,70,229);doc.rect(M,y,C,6,'F');
+    doc.setTextColor(255,255,255);doc.setFontSize(8);doc.setFont('helvetica','bold');
+    doc.text(label,M+3,y+4.2);
+    y+=9;
+  }
+  function tableRow(key,val,alt){
+    if(y+5>275){doc.addPage();y=14;pg++;addFooter(pg);}
+    if(alt){doc.setFillColor(247,248,252);doc.rect(M,y-3.2,C,5.2,'F');}
+    doc.setFont('helvetica','normal');doc.setTextColor(100,116,139);doc.setFontSize(7.5);
+    doc.text(key,M+3,y);
+    doc.setFont('helvetica','bold');doc.setTextColor(15,23,42);
+    doc.text(String(val),M+65,y);
+    y+=5.2;
+  }
+  let pg=1;
+
+  // ════════════════════ PAGE 1 ════════════════════
+
+  // Header band
+  doc.setFillColor(30,27,75);doc.rect(0,0,W,34,'F');
+  // Accent line
+  doc.setFillColor(79,70,229);doc.rect(0,34,W,1.5,'F');
+  // Brand
+  doc.setTextColor(255,255,255);doc.setFontSize(18);doc.setFont('helvetica','bold');
+  doc.text('RhythmSense',M,15);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(167,180,252);
+  doc.text('AI-Powered ECG Analysis Report',M,21);
+  // Right side info
+  doc.setTextColor(200,210,255);doc.setFontSize(7.5);
+  doc.text(dateStr+' at '+timeStr,W-M,13,{align:'right'});
+  doc.text('File: '+(file?file.name:'Unknown'),W-M,18,{align:'right'});
+  doc.text('Report ID: RS-'+Date.now().toString(36).toUpperCase(),W-M,23,{align:'right'});
+  y=42;
+
+  // ── Risk Assessment Card ──
+  const isHigh=d.final_status_level==='abnormal';
+  const isNorm=d.final_status_level==='normal';
+  const rc=isHigh?[185,28,28]:isNorm?[5,150,105]:[180,83,9];
+  const rcBg=isHigh?[254,242,242]:isNorm?[236,253,245]:[255,251,235];
+  // Card background
+  doc.setFillColor(rcBg[0],rcBg[1],rcBg[2]);doc.roundedRect(M,y,C,28,2,2,'F');
+  // Left accent bar
+  doc.setFillColor(rc[0],rc[1],rc[2]);doc.rect(M,y,3,28,'F');
+  // Badge
+  doc.setFillColor(rc[0],rc[1],rc[2]);doc.roundedRect(M+8,y+4,60,5.5,1.5,1.5,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(6.5);doc.setFont('helvetica','bold');
+  const badgeTxt=d.final_status_text.toUpperCase();
+  doc.text(badgeTxt,M+8+30,y+8.2,{align:'center'});
+  // Diagnosis
+  doc.setTextColor(rc[0],rc[1],rc[2]);doc.setFontSize(15);doc.setFont('helvetica','bold');
+  doc.text(d.prediction,M+8,y+18);
+  // Confidence (right)
+  doc.setTextColor(rc[0],rc[1],rc[2]);doc.setFontSize(22);doc.setFont('helvetica','bold');
+  doc.text(d.confidence+'%',W-M-5,y+16,{align:'right'});
+  doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(rc[0],rc[1],rc[2]);
+  doc.text('MODEL CONFIDENCE',W-M-5,y+21,{align:'right'});
+  // Subtitle
+  doc.setTextColor(100,116,139);doc.setFontSize(7);doc.setFont('helvetica','italic');
+  doc.text(d.final_interpretation,M+8,y+25);
+  y+=34;
+
+  // ── Clinical Summary ──
+  sectionTitle('CLINICAL SUMMARY');
+  const rows=[
+    ['Arrhythmia Detected',d.is_arrhythmia?'Yes':'No'],
+    ['Rhythm Label',d.rhythm_label||'N/A'],
+    ['Beats Analyzed',String(d.beats_analyzed)],
+    ['Signal Samples',d.signal_samples.toLocaleString()],
+    ['Processing Mode',d.processing_mode],
+    ['RR Mean (ms)',(d.rr_mean||0).toFixed(1)],
+    ['RR Std (ms)',(d.rr_std||0).toFixed(1)],
+    ['Irregular Beats in Latest Window',d.arr_in_buffer+'/5 beats']
+  ];
+  rows.forEach((r,i)=>tableRow(r[0],r[1],i%2===0));
+  y+=4;
+
+  // ── Class Probabilities ──
+  sectionTitle('MODEL CONFIDENCE DISTRIBUTION');
+  if(d.class_probabilities){
+    for(const[cls,pct] of Object.entries(d.class_probabilities)){
+      if(y+6>275){doc.addPage();y=14;pg++;addFooter(pg);}
+      const isMax=cls===d.prediction;
+      doc.setFont('helvetica',isMax?'bold':'normal');
+      doc.setTextColor(isMax?15:130,isMax?23:130,isMax?42:139);
+      doc.setFontSize(7.5);doc.text(cls,M+3,y);
+      // Bar track
+      doc.setFillColor(230,232,240);doc.roundedRect(M+50,y-2.8,90,4,1.5,1.5,'F');
+      // Bar fill
+      if(pct>0){
+        const bc=isMax?(d.is_arrhythmia?[220,38,38]:[79,70,229]):[180,185,200];
+        doc.setFillColor(bc[0],bc[1],bc[2]);
+        doc.roundedRect(M+50,y-2.8,Math.max(90*(pct/100),2),4,1.5,1.5,'F');
+      }
+      doc.setTextColor(isMax?15:130,isMax?23:130,isMax?42:139);
+      doc.text(pct.toFixed(1)+'%',W-M-3,y,{align:'right'});
+      y+=6;
+    }
+  }
+  y+=4;
+
+  // ── Waveform ──
+  const ecgCanvas=document.getElementById('ecg');
+  const heatCanvas=document.getElementById('ecg-heatmap');
+  if(ecgCanvas){
+    try{
+      const merged=document.createElement('canvas');
+      merged.width=ecgCanvas.width;merged.height=ecgCanvas.height;
+      const ctx=merged.getContext('2d');
+      ctx.fillStyle='#f8fafc';ctx.fillRect(0,0,merged.width,merged.height);
+      if(heatCanvas&&heatCanvas.width>0) ctx.drawImage(heatCanvas,0,0,merged.width,merged.height);
+      ctx.drawImage(ecgCanvas,0,0);
+      const img=merged.toDataURL('image/png');
+      if(y+46>275){doc.addPage();y=14;pg++;addFooter(pg);}
+      sectionTitle('ECG WAVEFORM & ATTENTION HEATMAP');
+      doc.addImage(img,'PNG',M,y,C,38);
+      doc.setDrawColor(220,220,220);doc.setLineWidth(0.3);doc.rect(M,y,C,38);
+      y+=42;
+    }catch(e){}
+  }
+
+  // ── Attention Explanation ──
+  if(d.attention_explanation){
+    if(y+20>275){doc.addPage();y=14;pg++;addFooter(pg);}
+    sectionTitle('ATTENTION ANALYSIS');
+    doc.setTextColor(30,30,30);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+    const lines=doc.splitTextToSize(d.attention_explanation.description,C-6);
+    doc.text(lines,M+3,y);y+=lines.length*3.5+3;
+    doc.setFontSize(7);doc.setTextColor(100,116,139);
+    doc.text('Focus Region: '+d.attention_explanation.peak_region+'   |   High Attention: '+d.attention_explanation.high_attention_pct+'% of signal   |   Beat #'+d.attention_explanation.beat_index,M+3,y);
+    y+=7;
+  }
+
+  // ── Clinical Explanation ──
+  if(d.clinical_explanation){
+    if(y+22>275){doc.addPage();y=14;pg++;addFooter(pg);}
+    sectionTitle('CLINICAL INTERPRETATION');
+    doc.setTextColor(30,30,30);doc.setFontSize(7.5);doc.setFont('helvetica','normal');
+    const cl=doc.splitTextToSize(d.clinical_explanation.explanation,C-6);
+    doc.text(cl,M+3,y);y+=cl.length*3.5+3;
+    if(d.clinical_explanation.waveform_note){
+      doc.setTextColor(120,100,0);doc.setFont('helvetica','italic');doc.setFontSize(7);
+      const wn=doc.splitTextToSize('Waveform: '+d.clinical_explanation.waveform_note,C-6);
+      doc.text(wn,M+3,y);y+=wn.length*3.2+3;
+    }
+    if(d.clinical_explanation.action){
+      if(y+8>275){doc.addPage();y=14;pg++;addFooter(pg);}
+      doc.setFillColor(236,253,245);doc.roundedRect(M,y-1,C,8,1.5,1.5,'F');
+      doc.setFillColor(5,150,105);doc.rect(M,y-1,2,8,'F');
+      doc.setTextColor(5,100,70);doc.setFont('helvetica','bold');doc.setFontSize(7);
+      doc.text('RECOMMENDED ACTION',M+6,y+2);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,60,50);
+      const ac=doc.splitTextToSize(d.clinical_explanation.action,C-12);
+      doc.text(ac,M+6,y+5.5);
+      y+=10+ac.length*2;
+    }
+  }
+
+  // ── Disclaimer ──
+  if(y+16>275){doc.addPage();y=14;pg++;addFooter(pg);}
+  y+=4;
+  doc.setFillColor(255,251,235);doc.roundedRect(M,y,C,14,1.5,1.5,'F');
+  doc.setFillColor(217,119,6);doc.rect(M,y,2,14,'F');
+  doc.setTextColor(120,53,15);doc.setFontSize(6.5);doc.setFont('helvetica','bold');
+  doc.text('IMPORTANT DISCLAIMER',M+6,y+4);
+  doc.setFont('helvetica','normal');doc.setFontSize(6);
+  doc.text('This report is generated by RhythmSense AI for educational and research purposes only. It is NOT a certified medical',M+6,y+8);
+  doc.text('device and should NOT be used for clinical diagnosis. Always consult a qualified cardiologist for interpretation.',M+6,y+11.5);
+
+  addFooter(pg);
+
+  const fname='RhythmSense_Report_'+now.toISOString().slice(0,10)+'.pdf';
+  doc.save(fname);
+}
 </script>
 </body>
 </html>
